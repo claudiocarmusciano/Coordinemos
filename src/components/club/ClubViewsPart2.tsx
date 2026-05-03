@@ -1,0 +1,340 @@
+'use client'
+
+import React, { useEffect, useState, useCallback } from 'react'
+import { useAuthStore, apiFetch } from '@/store/auth'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  Trophy,
+  Users,
+  Plus,
+  Trash2,
+  UserPlus,
+  X,
+} from 'lucide-react'
+import { toast } from 'sonner'
+
+/* ─── CLUB TOURNAMENTS ────────────────────────────── */
+export function ClubTournaments() {
+  const { token } = useAuthStore()
+  const [tournaments, setTournaments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [form, setForm] = useState({ name: '', startDate: '', endDate: '' })
+
+  const load = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/club/tournaments', token)
+      setTournaments(data)
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
+
+  const handleCreate = async () => {
+    try {
+      await apiFetch('/api/club/tournaments', token, {
+        method: 'POST',
+        body: JSON.stringify(form),
+      })
+      toast.success('Torneo creado')
+      setDialogOpen(false)
+      setForm({ name: '', startDate: '', endDate: '' })
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este torneo? Se eliminarán parejas, partidos y preferencias asociadas.')) return
+    try {
+      await apiFetch(`/api/club/tournaments/${id}`, token, { method: 'DELETE' })
+      toast.success('Torneo eliminado')
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Torneos</h2>
+          <p className="text-sm text-muted-foreground">Gestioná los torneos de tu club</p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Plus className="w-4 h-4 mr-2" /> Nuevo Torneo
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Nuevo Torneo</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Nombre</Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="bg-input border-border text-foreground" placeholder="Ej: Torneo Apertura 2025" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Fecha inicio</Label>
+                <Input type="date" value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} className="bg-input border-border text-foreground" />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Fecha fin</Label>
+                <Input type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} className="bg-input border-border text-foreground" />
+              </div>
+              <Button onClick={handleCreate} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">Crear Torneo</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Cargando...</p>
+      ) : tournaments.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <Trophy className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No hay torneos. Creá el primero.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {tournaments.map((t) => (
+            <Card key={t.id} className="bg-card border-border">
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-medium text-foreground">{t.name}</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(t.startDate).toLocaleDateString('es-AR')} — {new Date(t.endDate).toLocaleDateString('es-AR')}
+                  </p>
+                  <div className="flex gap-2 mt-2">
+                    <Badge variant="secondary" className="text-xs">{t._count?.couples || 0} parejas</Badge>
+                    <Badge variant="secondary" className="text-xs">{t._count?.matches || 0} partidos</Badge>
+                    <Badge variant="secondary" className="text-xs">{t.tournamentPlayers?.length || 0} inscriptos</Badge>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id)}>
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── CLUB PLAYERS ────────────────────────────── */
+export function ClubPlayers() {
+  const { token } = useAuthStore()
+  const [players, setPlayers] = useState<any[]>([])
+  const [tournaments, setTournaments] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [enrollDialogOpen, setEnrollDialogOpen] = useState(false)
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
+  const [selectedTournament, setSelectedTournament] = useState('')
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', username: '', password: '' })
+
+  const load = useCallback(async () => {
+    try {
+      const [pData, tData] = await Promise.all([
+        apiFetch('/api/club/players', token),
+        apiFetch('/api/club/tournaments', token),
+      ])
+      setPlayers(pData)
+      setTournaments(tData)
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
+
+  const handleCreate = async () => {
+    try {
+      await apiFetch('/api/club/players', token, {
+        method: 'POST',
+        body: JSON.stringify(form),
+      })
+      toast.success('Jugador creado')
+      setDialogOpen(false)
+      setForm({ firstName: '', lastName: '', phone: '', username: '', password: '' })
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('¿Eliminar este jugador?')) return
+    try {
+      await apiFetch(`/api/club/players/${id}`, token, { method: 'DELETE' })
+      toast.success('Jugador eliminado')
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const handleEnroll = async () => {
+    if (!selectedPlayer || !selectedTournament) return
+    try {
+      await apiFetch('/api/club/tournament-players', token, {
+        method: 'POST',
+        body: JSON.stringify({ tournamentId: selectedTournament, playerId: selectedPlayer.id }),
+      })
+      toast.success('Jugador inscripto al torneo')
+      setEnrollDialogOpen(false)
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const handleUnenroll = async (tournamentId: string, playerId: string) => {
+    try {
+      await apiFetch('/api/club/tournament-players', token, {
+        method: 'DELETE',
+        body: JSON.stringify({ tournamentId, playerId }),
+      })
+      toast.success('Jugador removido del torneo')
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Jugadores</h2>
+          <p className="text-sm text-muted-foreground">Gestioná los jugadores de tu club</p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <UserPlus className="w-4 h-4 mr-2" /> Nuevo Jugador
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Nuevo Jugador</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Nombre</Label>
+                  <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Apellido</Label>
+                  <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Teléfono</Label>
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="bg-input border-border text-foreground" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Usuario</Label>
+                  <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Contraseña</Label>
+                  <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+              </div>
+              <Button onClick={handleCreate} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">Crear Jugador</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Cargando...</p>
+      ) : players.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No hay jugadores. Creá el primero.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {players.map((p) => (
+            <Card key={p.id} className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-medium text-foreground">{p.firstName} {p.lastName}</h3>
+                    <p className="text-xs text-muted-foreground">Usuario: {p.user?.username}</p>
+                    {p.phone && <p className="text-xs text-muted-foreground">Tel: {p.phone}</p>}
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {p.tournamentPlayers?.map((tp: any) => (
+                        <Badge key={tp.id} variant="secondary" className="text-xs flex items-center gap-1">
+                          {tp.tournament?.name || 'Torneo'}
+                          <button onClick={() => handleUnenroll(tp.tournamentId, p.id)}>
+                            <X className="w-3 h-3 hover:text-destructive" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => { setSelectedPlayer(p); setEnrollDialogOpen(true) }}>
+                      <Trophy className="w-4 h-4 text-primary" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}>
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Enroll dialog */}
+      <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Inscribir a Torneo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Inscribir a <span className="text-foreground font-medium">{selectedPlayer?.firstName} {selectedPlayer?.lastName}</span>
+            </p>
+            <Select value={selectedTournament} onValueChange={setSelectedTournament}>
+              <SelectTrigger className="bg-input border-border text-foreground">
+                <SelectValue placeholder="Seleccioná un torneo" />
+              </SelectTrigger>
+              <SelectContent>
+                {tournaments.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={handleEnroll} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!selectedTournament}>
+              Inscribir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

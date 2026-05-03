@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH / USERS ───────────────────────────────────────────
+model User {
+  id               String   @id @default(cuid())
+  username         String   @unique
+  password         String
+  role             String   // ADMIN | CLUB | PLAYER
+  mustChangePassword Boolean @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  club         Club?
+  player       Player?
+  notifications Notification[]
+}
+
+// ─── CLUBS ──────────────────────────────────────────────────
+model Club {
+  id        String @id @default(cuid())
+  name      String
+  address   String @default("")
+  phone     String @default("")
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  courts      Court[]
+  tournaments Tournament[]
+  players     Player[]
+  slots       Slot[]
+}
+
+// ─── COURTS ─────────────────────────────────────────────────
+model Court {
+  id     String @id @default(cuid())
+  name   String
+  clubId String
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  slots Slot[]
+}
+
+// ─── TOURNAMENTS ────────────────────────────────────────────
+model Tournament {
+  id        String   @id @default(cuid())
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  clubId    String
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  couples        Couple[]
+  matches        Match[]
+  tournamentPlayers TournamentPlayer[]
+}
+
+// ─── PLAYERS ────────────────────────────────────────────────
+model Player {
+  id        String @id @default(cuid())
+  firstName String
+  lastName  String
+  phone     String @default("")
+  clubId    String
+  club      Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  userId    String @unique
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tournamentPlayers TournamentPlayer[]
+  coupleAsPlayer1  Couple[]           @relation("Player1")
+  coupleAsPlayer2  Couple[]           @relation("Player2")
+  slotPreferences  SlotPreference[]
+}
+
+// ─── TOURNAMENT PLAYERS (many-to-many) ──────────────────────
+model TournamentPlayer {
+  id           String     @id @default(cuid())
+  tournamentId String
+  playerId     String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player       Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+}
+
+// ─── COUPLES ────────────────────────────────────────────────
+model Couple {
+  id           String     @id @default(cuid())
+  tournamentId String
+  player1Id    String
+  player2Id    String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player1      Player     @relation("Player1", fields: [player1Id], references: [id], onDelete: Cascade)
+  player2      Player     @relation("Player2", fields: [player2Id], references: [id], onDelete: Cascade)
+
+  matchAsCouple1 Match[] @relation("Couple1")
+  matchAsCouple2 Match[] @relation("Couple2")
+
+  @@unique([tournamentId, player1Id, player2Id])
+}
+
+// ─── MATCHES ────────────────────────────────────────────────
+model Match {
+  id           String     @id @default(cuid())
+  tournamentId String
+  couple1Id    String
+  couple2Id    String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  couple1      Couple     @relation("Couple1", fields: [couple1Id], references: [id], onDelete: Cascade)
+  couple2      Couple     @relation("Couple2", fields: [couple2Id], references: [id], onDelete: Cascade)
+
+  slotPreferences SlotPreference[]
+  matchAssignment MatchAssignment?
+}
+
+// ─── SLOTS (available time slots per court) ─────────────────
+model Slot {
+  id        String @id @default(cuid())
+  day       String // ISO date string YYYY-MM-DD
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  courtId   String
+  clubId    String
+  status    String @default("AVAILABLE") // AVAILABLE | CONFIRMED | CANCELLED
+  court     Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  club      Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  matchAssignment MatchAssignment?
+}
+
+// ─── SLOT PREFERENCES (player selects day+time for a match) ─
+model SlotPreference {
+  id        String @id @default(cuid())
+  matchId   String
+  playerId  String
+  day       String // ISO date string YYYY-MM-DD
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  match     Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  player    Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, playerId, day, startTime, endTime])
+}
+
+// ─── MATCH ASSIGNMENTS (confirmed slot when 4 players agree) ─
+model MatchAssignment {
+  id          String   @id @default(cuid())
+  matchId     String   @unique
+  slotId      String   @unique
+  confirmedAt DateTime @default(now())
+  cancelledAt DateTime?
+  match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  slot        Slot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+}
+
+// ─── NOTIFICATIONS ──────────────────────────────────────────
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  type      String   // SLOT_CONFIRMED | SLOT_CANCELLED | INFO
+  read      Boolean  @default(false)
+  relatedId String?  // matchId or slotId
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
