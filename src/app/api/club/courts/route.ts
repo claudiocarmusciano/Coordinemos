@@ -31,14 +31,14 @@ export async function GET(request: Request) {
       orderBy: { name: 'asc' },
     })
 
-    const result = courts.map((court) => ({
-      id: court.id,
-      name: court.name,
-      clubId: court.clubId,
-      slotsCount: court._count.slots,
+    const mapped = courts.map((c) => ({
+      id: c.id,
+      name: c.name,
+      clubId: c.clubId,
+      _count: { slots: c._count.slots },
     }))
 
-    return NextResponse.json({ courts: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching courts:', error)
     return NextResponse.json(

@@ -45,41 +45,30 @@ export async function GET(request: Request) {
       include: {
         player1: {
           select: {
-            id: true,
             firstName: true,
             lastName: true,
-            phone: true,
           },
         },
         player2: {
           select: {
-            id: true,
             firstName: true,
             lastName: true,
-            phone: true,
-          },
-        },
-        _count: {
-          select: {
-            matchAsCouple1: true,
-            matchAsCouple2: true,
           },
         },
       },
       orderBy: { id: 'asc' },
     })
 
-    const result = couples.map((couple) => ({
-      id: couple.id,
-      tournamentId: couple.tournamentId,
-      player1Id: couple.player1Id,
-      player2Id: couple.player2Id,
-      player1: couple.player1,
-      player2: couple.player2,
-      matchesCount: couple._count.matchAsCouple1 + couple._count.matchAsCouple2,
+    const mapped = couples.map((c) => ({
+      id: c.id,
+      tournamentId: c.tournamentId,
+      player1Id: c.player1Id,
+      player2Id: c.player2Id,
+      player1: { firstName: c.player1.firstName, lastName: c.player1.lastName },
+      player2: { firstName: c.player2.firstName, lastName: c.player2.lastName },
     }))
 
-    return NextResponse.json({ couples: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching couples:', error)
     return NextResponse.json(

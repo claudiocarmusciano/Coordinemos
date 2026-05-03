@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       })
     }
 
-    return NextResponse.json({ notifications })
+    return NextResponse.json(notifications)
   } catch (error) {
     console.error('Error fetching player notifications:', error)
     return NextResponse.json(

@@ -22,11 +22,14 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get('status')
 
-    const where: Record<string, unknown> = { clubId: club.id }
-    if (status) {
-      where.status = status
+    const where: Record<string, unknown> = {
+      clubId: club.id,
+      status: { in: ['AVAILABLE', 'CONFIRMED'] },
+    }
+    const statusParam = searchParams.get('status')
+    if (statusParam) {
+      where.status = statusParam
     }
 
     const slots = await db.slot.findMany({
@@ -44,14 +47,14 @@ export async function GET(request: Request) {
               include: {
                 couple1: {
                   include: {
-                    player1: { select: { id: true, firstName: true, lastName: true } },
-                    player2: { select: { id: true, firstName: true, lastName: true } },
+                    player1: { select: { firstName: true, lastName: true } },
+                    player2: { select: { firstName: true, lastName: true } },
                   },
                 },
                 couple2: {
                   include: {
-                    player1: { select: { id: true, firstName: true, lastName: true } },
-                    player2: { select: { id: true, firstName: true, lastName: true } },
+                    player1: { select: { firstName: true, lastName: true } },
+                    player2: { select: { firstName: true, lastName: true } },
                   },
                 },
               },
@@ -62,19 +65,37 @@ export async function GET(request: Request) {
       orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
     })
 
-    const result = slots.map((slot) => ({
-      id: slot.id,
-      day: slot.day,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      courtId: slot.courtId,
-      clubId: slot.clubId,
-      status: slot.status,
-      court: slot.court,
-      matchAssignment: slot.matchAssignment,
-    }))
+    const mapped = slots.map((s) => {
+      const result: Record<string, unknown> = {
+        id: s.id,
+        day: s.day,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        courtId: s.courtId,
+        clubId: s.clubId,
+        status: s.status,
+        court: { id: s.court.id, name: s.court.name },
+      }
+      if (s.matchAssignment) {
+        const ma = s.matchAssignment
+        result.matchAssignment = {
+          id: ma.id,
+          match: {
+            couple1: {
+              player1: { firstName: ma.match.couple1.player1.firstName, lastName: ma.match.couple1.player1.lastName },
+              player2: { firstName: ma.match.couple1.player2.firstName, lastName: ma.match.couple1.player2.lastName },
+            },
+            couple2: {
+              player1: { firstName: ma.match.couple2.player1.firstName, lastName: ma.match.couple2.player1.lastName },
+              player2: { firstName: ma.match.couple2.player2.firstName, lastName: ma.match.couple2.player2.lastName },
+            },
+          },
+        }
+      }
+      return result
+    })
 
-    return NextResponse.json({ slots: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching slots:', error)
     return NextResponse.json(

@@ -107,10 +107,10 @@ async function seed() {
   const match1t2 = await db.match.create({ data: { tournamentId: t2.id, couple1Id: couple1t2.id, couple2Id: couple2t2.id } })
   const match2t2 = await db.match.create({ data: { tournamentId: t2.id, couple1Id: couple3t2.id, couple2Id: couple4t2.id } })
 
-  // Available slots for Club 1 (next 7 days)
+  // Available slots for Club 1 (next 3 days)
   const today = new Date()
   const days = []
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= 3; i++) {
     const d = new Date(today)
     d.setDate(d.getDate() + i)
     days.push(d.toISOString().split('T')[0])
@@ -123,8 +123,6 @@ async function seed() {
     { start: '15:30', end: '17:00' },
     { start: '17:00', end: '18:30' },
     { start: '18:30', end: '20:00' },
-    { start: '20:00', end: '21:30' },
-    { start: '21:30', end: '23:00' },
   ]
 
   const courts = [court1, court2, court3]

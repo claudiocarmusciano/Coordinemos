@@ -28,31 +28,38 @@ export async function GET(request: Request) {
           select: {
             id: true,
             username: true,
-            role: true,
-            mustChangePassword: true,
           },
         },
-        _count: {
-          select: {
-            tournamentPlayers: true,
+        tournamentPlayers: {
+          include: {
+            tournament: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
     })
 
-    const result = players.map((player) => ({
-      id: player.id,
-      firstName: player.firstName,
-      lastName: player.lastName,
-      phone: player.phone,
-      clubId: player.clubId,
-      userId: player.userId,
-      user: player.user,
-      tournamentsCount: player._count.tournamentPlayers,
+    const mapped = players.map((p) => ({
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      phone: p.phone,
+      clubId: p.clubId,
+      userId: p.userId,
+      user: p.user ? { id: p.user.id, username: p.user.username } : null,
+      tournamentPlayers: p.tournamentPlayers.map((tp) => ({
+        id: tp.id,
+        tournamentId: tp.tournamentId,
+        tournament: { name: tp.tournament.name },
+      })),
     }))
 
-    return NextResponse.json({ players: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching players:', error)
     return NextResponse.json(

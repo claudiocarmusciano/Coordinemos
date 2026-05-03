@@ -46,20 +46,20 @@ export async function GET(request: Request) {
         couple1: {
           include: {
             player1: {
-              select: { id: true, firstName: true, lastName: true, phone: true },
+              select: { firstName: true, lastName: true },
             },
             player2: {
-              select: { id: true, firstName: true, lastName: true, phone: true },
+              select: { firstName: true, lastName: true },
             },
           },
         },
         couple2: {
           include: {
             player1: {
-              select: { id: true, firstName: true, lastName: true, phone: true },
+              select: { firstName: true, lastName: true },
             },
             player2: {
-              select: { id: true, firstName: true, lastName: true, phone: true },
+              select: { firstName: true, lastName: true },
             },
           },
         },
@@ -68,42 +68,49 @@ export async function GET(request: Request) {
             slot: {
               include: {
                 court: {
-                  select: { id: true, name: true },
+                  select: { name: true },
                 },
               },
             },
           },
         },
-        slotPreferences: {
-          include: {
-            player: {
-              select: { id: true, firstName: true, lastName: true },
-            },
-          },
+        _count: {
+          select: { slotPreferences: true },
         },
       },
       orderBy: { id: 'asc' },
     })
 
-    const result = matches.map((match) => ({
-      id: match.id,
-      tournamentId: match.tournamentId,
-      couple1Id: match.couple1Id,
-      couple2Id: match.couple2Id,
-      couple1: match.couple1,
-      couple2: match.couple2,
-      matchAssignment: match.matchAssignment
+    const mapped = matches.map((m) => ({
+      id: m.id,
+      tournamentId: m.tournamentId,
+      couple1Id: m.couple1Id,
+      couple2Id: m.couple2Id,
+      couple1: {
+        player1: { firstName: m.couple1.player1.firstName, lastName: m.couple1.player1.lastName },
+        player2: { firstName: m.couple1.player2.firstName, lastName: m.couple1.player2.lastName },
+      },
+      couple2: {
+        player1: { firstName: m.couple2.player1.firstName, lastName: m.couple2.player1.lastName },
+        player2: { firstName: m.couple2.player2.firstName, lastName: m.couple2.player2.lastName },
+      },
+      matchAssignment: m.matchAssignment
         ? {
-            id: match.matchAssignment.id,
-            confirmedAt: match.matchAssignment.confirmedAt,
-            cancelledAt: match.matchAssignment.cancelledAt,
-            slot: match.matchAssignment.slot,
+            id: m.matchAssignment.id,
+            confirmedAt: m.matchAssignment.confirmedAt,
+            cancelledAt: m.matchAssignment.cancelledAt,
+            slot: {
+              day: m.matchAssignment.slot.day,
+              startTime: m.matchAssignment.slot.startTime,
+              endTime: m.matchAssignment.slot.endTime,
+              court: { name: m.matchAssignment.slot.court.name },
+            },
           }
         : null,
-      slotPreferences: match.slotPreferences,
+      slotPreferences: m._count.slotPreferences,
     }))
 
-    return NextResponse.json({ matches: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching matches:', error)
     return NextResponse.json(

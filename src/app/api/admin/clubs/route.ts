@@ -19,9 +19,6 @@ export async function GET(request: Request) {
           select: {
             id: true,
             username: true,
-            role: true,
-            mustChangePassword: true,
-            createdAt: true,
           },
         },
         _count: {
@@ -35,19 +32,17 @@ export async function GET(request: Request) {
       orderBy: { name: 'asc' },
     })
 
-    const result = clubs.map((club) => ({
-      id: club.id,
-      name: club.name,
-      address: club.address,
-      phone: club.phone,
-      userId: club.userId,
-      user: club.user,
-      courtsCount: club._count.courts,
-      playersCount: club._count.players,
-      tournamentsCount: club._count.tournaments,
+    const mapped = clubs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      address: c.address,
+      phone: c.phone,
+      userId: c.userId,
+      user: c.user ? { id: c.user.id, username: c.user.username } : null,
+      _count: { courts: c._count.courts, players: c._count.players, tournaments: c._count.tournaments },
     }))
 
-    return NextResponse.json({ clubs: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching clubs:', error)
     return NextResponse.json(

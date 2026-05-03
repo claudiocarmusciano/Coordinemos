@@ -32,12 +32,10 @@ export async function GET(request: Request) {
         },
         tournamentPlayers: {
           include: {
-            player: {
+            tournament: {
               select: {
                 id: true,
-                firstName: true,
-                lastName: true,
-                phone: true,
+                name: true,
               },
             },
           },
@@ -46,23 +44,22 @@ export async function GET(request: Request) {
       orderBy: { startDate: 'desc' },
     })
 
-    const result = tournaments.map((tournament) => ({
-      id: tournament.id,
-      name: tournament.name,
-      startDate: tournament.startDate,
-      endDate: tournament.endDate,
-      clubId: tournament.clubId,
-      couplesCount: tournament._count.couples,
-      matchesCount: tournament._count.matches,
-      tournamentPlayers: tournament.tournamentPlayers.map((tp) => ({
+    const mapped = tournaments.map((t) => ({
+      id: t.id,
+      name: t.name,
+      startDate: t.startDate,
+      endDate: t.endDate,
+      clubId: t.clubId,
+      _count: { couples: t._count.couples, matches: t._count.matches },
+      tournamentPlayers: t.tournamentPlayers.map((tp) => ({
         id: tp.id,
         playerId: tp.playerId,
         tournamentId: tp.tournamentId,
-        player: tp.player,
+        tournament: { name: tp.tournament.name },
       })),
     }))
 
-    return NextResponse.json({ tournaments: result })
+    return NextResponse.json(mapped)
   } catch (error) {
     console.error('Error fetching tournaments:', error)
     return NextResponse.json(
