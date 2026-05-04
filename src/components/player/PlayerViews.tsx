@@ -14,6 +14,7 @@ import {
   XCircle,
   Bell,
   BellRing,
+  CheckCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -344,11 +345,51 @@ export function PlayerNotifications() {
 
   useEffect(() => { load() }, [load])
 
+  const markAllRead = async () => {
+    try {
+      await apiFetch('/api/player/notifications', token, {
+        method: 'PUT',
+        body: JSON.stringify({ markAllRead: true }),
+      })
+      toast.success('Todas las notificaciones marcadas como leídas')
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    }
+  }
+
+  const markAsRead = async (id: string) => {
+    try {
+      await apiFetch('/api/player/notifications', token, {
+        method: 'PUT',
+        body: JSON.stringify({ notificationIds: [id] }),
+      })
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    }
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">Notificaciones</h2>
-        <p className="text-sm text-muted-foreground">Avisos sobre tus turnos</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Notificaciones</h2>
+          <p className="text-sm text-muted-foreground">Avisos sobre tus turnos</p>
+        </div>
+        {unreadCount > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={markAllRead}
+            className="border-border text-muted-foreground hover:text-foreground"
+          >
+            <CheckCheck className="w-4 h-4 mr-1" />
+            Marcar todas como leídas
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -363,7 +404,7 @@ export function PlayerNotifications() {
       ) : (
         <div className="space-y-3">
           {notifications.map((n) => (
-            <Card key={n.id} className={`bg-card border-border ${!n.read ? 'border-primary/30' : ''}`}>
+            <Card key={n.id} className={`bg-card border-border transition-colors ${!n.read ? 'border-primary/30 bg-primary/[0.02]' : ''}`}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -377,12 +418,22 @@ export function PlayerNotifications() {
                       <BellRing className="w-4 h-4 text-primary" />
                     )}
                   </div>
-                  <div>
-                    <p className="text-foreground text-sm">{n.message}</p>
+                  <div className="flex-1">
+                    <p className={`text-sm ${!n.read ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>{n.message}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(n.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
+                  {!n.read && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => markAsRead(n.id)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Marcar leída
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>

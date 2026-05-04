@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { apiFetch } from '@/store/auth'
 import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 
 export function LoginPage() {
   const { setAuth } = useAuthStore()
@@ -34,49 +35,97 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm bg-card border-border">
-        <CardHeader className="text-center pb-2">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-3">
-            <span className="text-white font-bold text-2xl">C</span>
-          </div>
-          <CardTitle className="text-xl text-foreground">Coordinemos</CardTitle>
-          <p className="text-sm text-muted-foreground">Coordiná tus turnos de pádel</p>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username" className="text-muted-foreground">Usuario</Label>
-              <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Tu usuario"
-                className="bg-input border-border text-foreground"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-muted-foreground">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Tu contraseña"
-                className="bg-input border-border text-foreground"
-                required
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-              disabled={loading}
+      {/* Background decorative elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 rounded-full bg-primary/3 blur-3xl" />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className="w-full max-w-sm relative"
+      >
+        <Card className="bg-card border-border shadow-xl shadow-black/20">
+          <CardHeader className="text-center pb-2">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
             >
-              {loading ? 'Ingresando...' : 'Ingresar'}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
+                <span className="text-white font-bold text-3xl">C</span>
+              </div>
+            </motion.div>
+            <CardTitle className="text-2xl text-foreground font-bold">Coordinemos</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">Coordiná tus turnos de pádel</p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="text-muted-foreground">Usuario</Label>
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Tu usuario"
+                  className="bg-input border-border text-foreground h-11"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-muted-foreground">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Tu contraseña"
+                  className="bg-input border-border text-foreground h-11"
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 font-medium"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Ingresando...
+                  </span>
+                ) : 'Ingresar'}
+              </Button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-border">
+              <p className="text-xs text-muted-foreground text-center mb-3">Usuarios de prueba</p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'Admin', user: 'admin', pass: 'admin123' },
+                  { label: 'Club', user: 'club_baires', pass: 'club123' },
+                  { label: 'Jugador', user: 'martin.g', pass: 'player123' },
+                ].map((demo) => (
+                  <button
+                    key={demo.user}
+                    type="button"
+                    onClick={() => {
+                      setUsername(demo.user)
+                      setPassword(demo.pass)
+                    }}
+                    className="px-2 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
+                  >
+                    {demo.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   )
 }

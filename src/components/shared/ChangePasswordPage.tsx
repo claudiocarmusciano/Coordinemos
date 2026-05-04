@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Key } from 'lucide-react'
+import { Key, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { motion } from 'framer-motion'
 
 export function ChangePasswordPage() {
   const { user, token, setAuth, updateUser } = useAuthStore()
@@ -52,9 +53,17 @@ export function ChangePasswordPage() {
       </div>
 
       {user?.mustChangePassword && (
-        <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm text-primary">
-          Debés cambiar tu contraseña antes de continuar.
-        </div>
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="bg-primary/10 border border-primary/20 rounded-lg p-4 flex items-start gap-3"
+        >
+          <AlertTriangle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-primary">Debés cambiar tu contraseña</p>
+            <p className="text-xs text-primary/80 mt-1">Esta es tu primera vez ingresando. Por seguridad, elegí una contraseña nueva antes de continuar.</p>
+          </div>
+        </motion.div>
       )}
 
       <Card className="bg-card border-border max-w-md">
@@ -72,8 +81,9 @@ export function ChangePasswordPage() {
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="bg-input border-border text-foreground"
+                className="bg-input border-border text-foreground h-11"
                 required
+                autoFocus
               />
             </div>
             <div className="space-y-2">
@@ -82,7 +92,7 @@ export function ChangePasswordPage() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="bg-input border-border text-foreground"
+                className="bg-input border-border text-foreground h-11"
                 required
               />
             </div>
@@ -92,16 +102,26 @@ export function ChangePasswordPage() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-input border-border text-foreground"
+                className="bg-input border-border text-foreground h-11"
                 required
               />
             </div>
             <Button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 font-medium"
               disabled={loading}
             >
-              {loading ? 'Guardando...' : 'Guardar Contraseña'}
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Guardando...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4" />
+                  Guardar Contraseña
+                </span>
+              )}
             </Button>
           </form>
         </CardContent>

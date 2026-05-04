@@ -77,10 +77,19 @@ export default function HomePage() {
 
   useEffect(() => {
     if (user && currentView === 'login') {
-      setView(getDefaultView(user.role) as any)
+      // Force password change if required
+      if (user.mustChangePassword) {
+        setView('change-password')
+      } else {
+        setView(getDefaultView(user.role) as any)
+      }
     }
     if (!user && currentView !== 'login') {
       setView('login')
+    }
+    // Force password change view if user has mustChangePassword and tries to navigate away
+    if (user && user.mustChangePassword && currentView !== 'change-password') {
+      setView('change-password')
     }
   }, [user, currentView, setView])
 
