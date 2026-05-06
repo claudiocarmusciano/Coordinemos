@@ -44,6 +44,7 @@ export function ClubCouples() {
   const [player1Id, setPlayer1Id] = useState('')
   const [player2Id, setPlayer2Id] = useState('')
   const [loading, setLoading] = useState(true)
+  const [playersLoading, setPlayersLoading] = useState(false)
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -58,24 +59,21 @@ export function ClubCouples() {
 
   useEffect(() => { loadTournaments() }, [loadTournaments])
 
-  const loadCouples = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!selectedTournament) return
+    setPlayersLoading(true)
     try {
-      const data = await apiFetch(`/api/club/couples?tournamentId=${selectedTournament}`, token)
-      setCouples(data)
-      // Calculate available players (not in any couple in this tournament)
-      const coupledPlayerIds = new Set(data.flatMap((c: any) => [c.player1Id, c.player2Id]))
-      // Get all players in the tournament
-      const tournament = tournaments.find((t) => t.id === selectedTournament)
-      const allPlayerIds = tournament?.tournamentPlayers?.map((tp: any) => tp.playerId) || []
-      // We need to fetch all players to show names
-      const playersData = await apiFetch('/api/club/players', token)
-      const tournamentPlayers = playersData.filter((p: any) => allPlayerIds.includes(p.id))
-      setAvailablePlayers(tournamentPlayers.filter((p: any) => !coupledPlayerIds.has(p.id)))
+      const [coupleData, playerData] = await Promise.all([
+        apiFetch(`/api/club/couples?tournamentId=${selectedTournament}`, token),
+        apiFetch(`/api/club/available-players?tournamentId=${selectedTournament}`, token),
+      ])
+      setCouples(coupleData)
+      setAvailablePlayers(playerData)
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
-  }, [token, selectedTournament, tournaments])
+    finally { setPlayersLoading(false) }
+  }, [token, selectedTournament])
 
-  useEffect(() => { if (selectedTournament) loadCouples() }, [loadCouples])
+  useEffect(() => { if (selectedTournament) loadData() }, [loadData])
 
   const handleCreate = async () => {
     try {
@@ -87,7 +85,7 @@ export function ClubCouples() {
       setDialogOpen(false)
       setPlayer1Id('')
       setPlayer2Id('')
-      loadCouples()
+      loadData()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
 
@@ -96,7 +94,7 @@ export function ClubCouples() {
     try {
       await apiFetch(`/api/club/couples/${id}`, token, { method: 'DELETE' })
       toast.success('Pareja eliminada')
-      loadCouples()
+      loadData()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
 
@@ -119,9 +117,16 @@ export function ClubCouples() {
           </SelectContent>
         </Select>
         {selectedTournament && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => {
+            if (open && availablePlayers.length < 2 && !playersLoading) {
+              toast.error('No hay suficientes jugadores disponibles para crear una pareja')
+              return
+            }
+            setDialogOpen(open)
+            if (!open) { setPlayer1Id(''); setPlayer2Id('') }
+          }}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground" disabled={playersLoading || availablePlayers.length < 2}>
                 <Plus className="w-4 h-4 mr-2" /> Nueva Pareja
               </Button>
             </DialogTrigger>
@@ -129,51 +134,65 @@ export function ClubCouples() {
               <DialogHeader>
                 <DialogTitle className="text-foreground">Nueva Pareja</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Jugador 1</Label>
-                  <Select value={player1Id} onValueChange={setPlayer1Id}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
-                      <SelectValue placeholder="Seleccioná jugador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availablePlayers
-                        .filter((p) => p.id !== player2Id)
-                        .map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+              {availablePlayers.length < 2 ? (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 text-center">
+                  <AlertCircle className="w-8 h-8 text-primary mx-auto mb-2" />
+                  <p className="text-sm text-primary font-medium">No hay jugadores disponibles</p>
+                  <p className="text-xs text-muted-foreground mt-1">Todos los jugadores inscriptos ya tienen pareja en este torneo.</p>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Jugador 2</Label>
-                  <Select value={player2Id} onValueChange={setPlayer2Id}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
-                      <SelectValue placeholder="Seleccioná jugador" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availablePlayers
-                        .filter((p) => p.id !== player1Id)
-                        .map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+              ) : (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Jugador 1</Label>
+                    <Select value={player1Id} onValueChange={setPlayer1Id}>
+                      <SelectTrigger className="bg-input border-border text-foreground">
+                        <SelectValue placeholder="Seleccioná jugador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePlayers
+                          .filter((p) => p.id !== player2Id)
+                          .map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Jugador 2</Label>
+                    <Select value={player2Id} onValueChange={setPlayer2Id}>
+                      <SelectTrigger className="bg-input border-border text-foreground">
+                        <SelectValue placeholder="Seleccioná jugador" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePlayers
+                          .filter((p) => p.id !== player1Id)
+                          .map((p) => (
+                            <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    onClick={handleCreate}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    disabled={!player1Id || !player2Id}
+                  >
+                    Crear Pareja
+                  </Button>
                 </div>
-                <Button
-                  onClick={handleCreate}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                  disabled={!player1Id || !player2Id}
-                >
-                  Crear Pareja
-                </Button>
-              </div>
+              )}
             </DialogContent>
           </Dialog>
         )}
       </div>
 
-      {couples.length === 0 ? (
+      {playersLoading ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <p className="text-muted-foreground">Cargando...</p>
+          </CardContent>
+        </Card>
+      ) : couples.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="p-8 text-center">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />

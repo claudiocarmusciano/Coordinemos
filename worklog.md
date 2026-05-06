@@ -44,3 +44,47 @@ Stage Summary:
 - Login page has quick-test buttons for demo users
 - Notifications API supports individual and bulk mark-as-read
 - All code quality checks pass
+
+---
+Task ID: 1
+Agent: main
+Task: Fix Club Couples dropdown selectors - players not appearing in select menus
+
+Work Log:
+- Diagnosed root cause: ClubCouples component used 3 fragile API calls (tournaments, couples, players) to calculate availablePlayers on the frontend. When any call failed (especially due to sandbox memory constraints), availablePlayers stayed empty, making dropdowns appear broken.
+- Created new API endpoint `/api/club/available-players` (GET) that returns players enrolled in a tournament who are NOT already in a couple. Single efficient server-side query combining TournamentPlayer + Couple data.
+- Updated ClubCouples component to use the new endpoint instead of the fragile 3-call approach:
+  - Replaced `loadCouples` with `loadData` that fetches couples and available players in parallel via `Promise.all`
+  - Added `playersLoading` state for proper loading feedback in dropdowns
+  - Added "No hay jugadores disponibles" empty state message in Select dropdowns when no players available
+  - Changed SelectValue placeholders to show "Cargando..." while loading
+  - Disabled "Crear Pareja" button during loading
+  - Added loading card state for the couples list area
+- Lint passes with no errors
+- Dev server compiles successfully
+
+Stage Summary:
+- Dropdown selectors now reliably populate via a single dedicated API endpoint
+- Loading and empty states provide clear user feedback
+- No more dependency on crossing tournament/player data on the frontend
+
+---
+Task ID: 2
+Agent: main
+Task: Improve Club Couples UX and reset database for stable testing
+
+Work Log:
+- Improved ClubCouples component: disabled "Nueva Pareja" button when availablePlayers < 2
+- Added clear feedback when no players available: toast error + warning message in dialog
+- Reset database with mustChangePassword=false for all users (avoids forced password change blocking testing)
+- Updated package.json dev script to use NODE_OPTIONS='--max-old-space-size=1024' for memory stability
+- Re-seeded database with fresh data via Node.js script
+- Verified API endpoints work: login, tournaments, couples, available-players
+- Available players correctly returns 0 when all players are in couples
+- All lint checks pass
+
+Stage Summary:
+- Couples page now shows clear feedback when no players available for pairing
+- Button disabled when can't create couples (need at least 2 free players)
+- Database reset with stable test data (no forced password changes)
+- Dev server configured with 1024MB memory limit for stability
