@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,6 +45,7 @@ export function ClubCouples() {
   const [player2Id, setPlayer2Id] = useState('')
   const [loading, setLoading] = useState(true)
   const [playersLoading, setPlayersLoading] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -141,14 +142,14 @@ export function ClubCouples() {
                   <p className="text-xs text-muted-foreground mt-1">Todos los jugadores inscriptos ya tienen pareja en este torneo.</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div ref={dialogRef} className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Jugador 1</Label>
                     <Select value={player1Id} onValueChange={setPlayer1Id}>
-                      <SelectTrigger className="bg-input border-border text-foreground">
+                      <SelectTrigger className="bg-input border-border text-foreground w-full">
                         <SelectValue placeholder="Seleccioná jugador" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent container={dialogRef.current}>
                         {availablePlayers
                           .filter((p) => p.id !== player2Id)
                           .map((p) => (
@@ -160,10 +161,10 @@ export function ClubCouples() {
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Jugador 2</Label>
                     <Select value={player2Id} onValueChange={setPlayer2Id}>
-                      <SelectTrigger className="bg-input border-border text-foreground">
+                      <SelectTrigger className="bg-input border-border text-foreground w-full">
                         <SelectValue placeholder="Seleccioná jugador" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent container={dialogRef.current}>
                         {availablePlayers
                           .filter((p) => p.id !== player1Id)
                           .map((p) => (
@@ -237,6 +238,7 @@ export function ClubMatches() {
   const [couple1Id, setCouple1Id] = useState('')
   const [couple2Id, setCouple2Id] = useState('')
   const [loading, setLoading] = useState(true)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -326,14 +328,14 @@ export function ClubMatches() {
               <DialogHeader>
                 <DialogTitle className="text-foreground">Nuevo Partido</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <div ref={dialogRef} className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Pareja 1</Label>
                   <Select value={couple1Id} onValueChange={setCouple1Id}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
+                    <SelectTrigger className="bg-input border-border text-foreground w-full">
                       <SelectValue placeholder="Seleccioná pareja" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent container={dialogRef.current}>
                       {couples.filter((c) => c.id !== couple2Id).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.player1?.firstName} {c.player1?.lastName} & {c.player2?.firstName} {c.player2?.lastName}
@@ -345,10 +347,10 @@ export function ClubMatches() {
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Pareja 2</Label>
                   <Select value={couple2Id} onValueChange={setCouple2Id}>
-                    <SelectTrigger className="bg-input border-border text-foreground">
+                    <SelectTrigger className="bg-input border-border text-foreground w-full">
                       <SelectValue placeholder="Seleccioná pareja" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent container={dialogRef.current}>
                       {couples.filter((c) => c.id !== couple1Id).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.player1?.firstName} {c.player1?.lastName} & {c.player2?.firstName} {c.player2?.lastName}
@@ -420,6 +422,7 @@ export function ClubSlots() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState({ day: '', startTime: '', endTime: '', courtId: '' })
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -504,7 +507,7 @@ export function ClubSlots() {
             <DialogHeader>
               <DialogTitle className="text-foreground">Nuevo Turno</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div ref={dialogRef} className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Día</Label>
                 <Input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="bg-input border-border text-foreground" />
@@ -522,10 +525,10 @@ export function ClubSlots() {
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Cancha</Label>
                 <Select value={form.courtId} onValueChange={(v) => setForm({ ...form, courtId: v })}>
-                  <SelectTrigger className="bg-input border-border text-foreground">
+                  <SelectTrigger className="bg-input border-border text-foreground w-full">
                     <SelectValue placeholder="Seleccioná cancha" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent container={dialogRef.current}>
                     {courts.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
@@ -560,7 +563,7 @@ export function ClubSlots() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {daySlots
+                {(daySlots as any[])
                   .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime))
                   .map((slot: any) => (
                     <div key={slot.id} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">

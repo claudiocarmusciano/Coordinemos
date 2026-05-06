@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -155,6 +155,7 @@ export function ClubPlayers() {
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
   const [selectedTournament, setSelectedTournament] = useState('')
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', username: '', password: '' })
+  const enrollDialogRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -315,7 +316,7 @@ export function ClubPlayers() {
           <DialogHeader>
             <DialogTitle className="text-foreground">Inscribir a Torneo</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div ref={enrollDialogRef} className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Inscribir a <span className="text-foreground font-medium">{selectedPlayer?.firstName} {selectedPlayer?.lastName}</span>
             </p>
@@ -323,7 +324,7 @@ export function ClubPlayers() {
               <SelectTrigger className="bg-input border-border text-foreground">
                 <SelectValue placeholder="Seleccioná un torneo" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent container={enrollDialogRef.current}>
                 {tournaments.map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
