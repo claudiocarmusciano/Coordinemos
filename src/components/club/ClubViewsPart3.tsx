@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogOverlay,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -45,7 +46,6 @@ export function ClubCouples() {
   const [player2Id, setPlayer2Id] = useState('')
   const [loading, setLoading] = useState(true)
   const [playersLoading, setPlayersLoading] = useState(false)
-  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -118,7 +118,7 @@ export function ClubCouples() {
           </SelectContent>
         </Select>
         {selectedTournament && (
-          <Dialog open={dialogOpen} onOpenChange={(open) => {
+          <Dialog modal={false} open={dialogOpen} onOpenChange={(open) => {
             if (open && availablePlayers.length < 2 && !playersLoading) {
               toast.error('No hay suficientes jugadores disponibles para crear una pareja')
               return
@@ -131,7 +131,16 @@ export function ClubCouples() {
                 <Plus className="w-4 h-4 mr-2" /> Nueva Pareja
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border">
+            <DialogContent
+              className="bg-card border-border"
+              onPointerDownOutside={(e) => {
+                // Prevent closing when interacting with select dropdown
+                const target = e.detail.originalEvent.target as HTMLElement
+                if (target.closest('[data-radix-select-content]')) {
+                  e.preventDefault()
+                }
+              }}
+            >
               <DialogHeader>
                 <DialogTitle className="text-foreground">Nueva Pareja</DialogTitle>
               </DialogHeader>
@@ -142,14 +151,14 @@ export function ClubCouples() {
                   <p className="text-xs text-muted-foreground mt-1">Todos los jugadores inscriptos ya tienen pareja en este torneo.</p>
                 </div>
               ) : (
-                <div ref={dialogRef} className="space-y-4">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label className="text-muted-foreground">Jugador 1</Label>
                     <Select value={player1Id} onValueChange={setPlayer1Id}>
                       <SelectTrigger className="bg-input border-border text-foreground w-full">
                         <SelectValue placeholder="Seleccioná jugador" />
                       </SelectTrigger>
-                      <SelectContent container={dialogRef.current}>
+                      <SelectContent>
                         {availablePlayers
                           .filter((p) => p.id !== player2Id)
                           .map((p) => (
@@ -164,7 +173,7 @@ export function ClubCouples() {
                       <SelectTrigger className="bg-input border-border text-foreground w-full">
                         <SelectValue placeholder="Seleccioná jugador" />
                       </SelectTrigger>
-                      <SelectContent container={dialogRef.current}>
+                      <SelectContent>
                         {availablePlayers
                           .filter((p) => p.id !== player1Id)
                           .map((p) => (
@@ -238,7 +247,6 @@ export function ClubMatches() {
   const [couple1Id, setCouple1Id] = useState('')
   const [couple2Id, setCouple2Id] = useState('')
   const [loading, setLoading] = useState(true)
-  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadTournaments = useCallback(async () => {
     try {
@@ -318,24 +326,32 @@ export function ClubMatches() {
           </SelectContent>
         </Select>
         {selectedTournament && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog modal={false} open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
                 <Plus className="w-4 h-4 mr-2" /> Nuevo Partido
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border">
+            <DialogContent
+              className="bg-card border-border"
+              onPointerDownOutside={(e) => {
+                const target = e.detail.originalEvent.target as HTMLElement
+                if (target.closest('[data-radix-select-content]')) {
+                  e.preventDefault()
+                }
+              }}
+            >
               <DialogHeader>
                 <DialogTitle className="text-foreground">Nuevo Partido</DialogTitle>
               </DialogHeader>
-              <div ref={dialogRef} className="space-y-4">
+              <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Pareja 1</Label>
                   <Select value={couple1Id} onValueChange={setCouple1Id}>
                     <SelectTrigger className="bg-input border-border text-foreground w-full">
                       <SelectValue placeholder="Seleccioná pareja" />
                     </SelectTrigger>
-                    <SelectContent container={dialogRef.current}>
+                    <SelectContent>
                       {couples.filter((c) => c.id !== couple2Id).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.player1?.firstName} {c.player1?.lastName} & {c.player2?.firstName} {c.player2?.lastName}
@@ -350,7 +366,7 @@ export function ClubMatches() {
                     <SelectTrigger className="bg-input border-border text-foreground w-full">
                       <SelectValue placeholder="Seleccioná pareja" />
                     </SelectTrigger>
-                    <SelectContent container={dialogRef.current}>
+                    <SelectContent>
                       {couples.filter((c) => c.id !== couple1Id).map((c) => (
                         <SelectItem key={c.id} value={c.id}>
                           {c.player1?.firstName} {c.player1?.lastName} & {c.player2?.firstName} {c.player2?.lastName}
@@ -422,7 +438,6 @@ export function ClubSlots() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState({ day: '', startTime: '', endTime: '', courtId: '' })
-  const dialogRef = useRef<HTMLDivElement>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -497,17 +512,25 @@ export function ClubSlots() {
           <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
           <p className="text-sm text-muted-foreground">Gestioná los turnos disponibles de tu club</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog modal={false} open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
               <Plus className="w-4 h-4 mr-2" /> Nuevo Turno
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-card border-border">
+          <DialogContent
+            className="bg-card border-border"
+            onPointerDownOutside={(e) => {
+              const target = e.detail.originalEvent.target as HTMLElement
+              if (target.closest('[data-radix-select-content]')) {
+                e.preventDefault()
+              }
+            }}
+          >
             <DialogHeader>
               <DialogTitle className="text-foreground">Nuevo Turno</DialogTitle>
             </DialogHeader>
-            <div ref={dialogRef} className="space-y-4">
+            <div className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Día</Label>
                 <Input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="bg-input border-border text-foreground" />
@@ -528,7 +551,7 @@ export function ClubSlots() {
                   <SelectTrigger className="bg-input border-border text-foreground w-full">
                     <SelectValue placeholder="Seleccioná cancha" />
                   </SelectTrigger>
-                  <SelectContent container={dialogRef.current}>
+                  <SelectContent>
                     {courts.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}

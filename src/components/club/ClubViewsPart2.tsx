@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -155,7 +155,6 @@ export function ClubPlayers() {
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
   const [selectedTournament, setSelectedTournament] = useState('')
   const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', username: '', password: '' })
-  const enrollDialogRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async () => {
     try {
@@ -310,21 +309,29 @@ export function ClubPlayers() {
         </div>
       )}
 
-      {/* Enroll dialog */}
-      <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
-        <DialogContent className="bg-card border-border">
+      {/* Enroll dialog - modal={false} so Select dropdowns work */}
+      <Dialog modal={false} open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
+        <DialogContent
+          className="bg-card border-border"
+          onPointerDownOutside={(e) => {
+            const target = e.detail.originalEvent.target as HTMLElement
+            if (target.closest('[data-radix-select-content]')) {
+              e.preventDefault()
+            }
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="text-foreground">Inscribir a Torneo</DialogTitle>
           </DialogHeader>
-          <div ref={enrollDialogRef} className="space-y-4">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Inscribir a <span className="text-foreground font-medium">{selectedPlayer?.firstName} {selectedPlayer?.lastName}</span>
             </p>
             <Select value={selectedTournament} onValueChange={setSelectedTournament}>
-              <SelectTrigger className="bg-input border-border text-foreground">
+              <SelectTrigger className="bg-input border-border text-foreground w-full">
                 <SelectValue placeholder="Seleccioná un torneo" />
               </SelectTrigger>
-              <SelectContent container={enrollDialogRef.current}>
+              <SelectContent>
                 {tournaments.map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
