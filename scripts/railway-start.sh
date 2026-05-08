@@ -2,7 +2,7 @@
 set -e
 
 echo "→ Inicializando base de datos..."
-./node_modules/.bin/prisma db push
+npx prisma db push
 
 echo "→ Iniciando servidor..."
-exec node server.js
+exec node .next/standalone/server.js
