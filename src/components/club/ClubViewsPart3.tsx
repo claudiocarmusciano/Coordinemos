@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogOverlay,
 } from '@/components/ui/dialog'
 import {
   Select,
@@ -30,8 +29,8 @@ import {
   AlertCircle,
   XCircle,
 } from 'lucide-react'
+
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
 /* ─── CLUB COUPLES ────────────────────────────── */
@@ -431,13 +430,39 @@ export function ClubMatches() {
 }
 
 /* ─── CLUB SLOTS ────────────────────────────── */
+
+const PRESET_TIMES = [
+  { start: '07:30', end: '09:00' },
+  { start: '09:00', end: '10:30' },
+  { start: '10:30', end: '12:00' },
+  { start: '12:00', end: '13:30' },
+  { start: '13:30', end: '15:00' },
+  { start: '15:00', end: '16:30' },
+  { start: '16:30', end: '18:00' },
+  { start: '18:00', end: '19:30' },
+  { start: '19:30', end: '21:00' },
+  { start: '21:00', end: '22:30' },
+  { start: '22:30', end: '00:00' },
+]
+
+function getUpcomingDays(count = 14): string[] {
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    return d.toISOString().split('T')[0]
+  })
+}
+
 export function ClubSlots() {
   const { token } = useAuthStore()
   const [slots, setSlots] = useState<any[]>([])
   const [courts, setCourts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [form, setForm] = useState({ day: '', startTime: '', endTime: '', courtId: '' })
+  const [selectedCourtId, setSelectedCourtId] = useState('')
+  const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
+  const [processing, setProcessing] = useState<Set<string>>(new Set())
+
+  const days = getUpcomingDays(14)
 
   const loadData = useCallback(async () => {
     try {
@@ -447,29 +472,52 @@ export function ClubSlots() {
       ])
       setSlots(slotData)
       setCourts(courtData)
+      if (courtData.length > 0) {
+        setSelectedCourtId((prev) => prev || courtData[0].id)
+      }
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setLoading(false) }
   }, [token])
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleCreate = async () => {
+  const findSlot = (courtId: string, day: string, start: string) =>
+    slots.find((s) => s.courtId === courtId && s.day === day && s.startTime === start)
+
+  const handleToggle = async (time: { start: string; end: string }) => {
+    if (!selectedCourtId) return
+    const existing = findSlot(selectedCourtId, selectedDay, time.start)
+    const key = `${selectedDay}-${time.start}`
+    if (processing.has(key)) return
+
+    if (existing?.status === 'CONFIRMED') {
+      toast.error('No podés eliminar un turno ya confirmado')
+      return
+    }
+
+    setProcessing((prev) => new Set(prev).add(key))
     try {
-      await apiFetch('/api/club/slots', token, {
-        method: 'POST',
-        body: JSON.stringify(form),
-      })
-      toast.success('Turno creado')
-      setDialogOpen(false)
-      setForm({ day: '', startTime: '', endTime: '', courtId: '' })
-      loadData()
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+      if (existing) {
+        await apiFetch(`/api/club/slots/${existing.id}`, token, { method: 'DELETE' })
+      } else {
+        await apiFetch('/api/club/slots', token, {
+          method: 'POST',
+          body: JSON.stringify({ day: selectedDay, startTime: time.start, endTime: time.end, courtId: selectedCourtId }),
+        })
+      }
+      await loadData()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setProcessing((prev) => { const s = new Set(prev); s.delete(key); return s })
+    }
   }
 
-  const handleCancel = async (id: string) => {
-    if (!confirm('¿Cancelar este turno? Si estaba confirmado, los jugadores serán notificados.')) return
+  const handleCancelSlot = async (slotId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('¿Cancelar este turno? Los jugadores serán notificados.')) return
     try {
-      await apiFetch(`/api/club/slots/${id}`, token, {
+      await apiFetch(`/api/club/slots/${slotId}`, token, {
         method: 'PUT',
         body: JSON.stringify({ status: 'CANCELLED' }),
       })
@@ -478,147 +526,177 @@ export function ClubSlots() {
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este turno?')) return
-    try {
-      await apiFetch(`/api/club/slots/${id}`, token, { method: 'DELETE' })
-      toast.success('Turno eliminado')
-      loadData()
-    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  const formatDay = (iso: string) => {
+    const d = new Date(iso + 'T12:00:00')
+    return {
+      weekday: d.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '').toUpperCase(),
+      num: d.getDate(),
+    }
   }
 
-  const statusColors: Record<string, string> = {
-    AVAILABLE: 'bg-green-500/10 text-green-500',
-    CONFIRMED: 'bg-primary/10 text-primary',
-    CANCELLED: 'bg-destructive/10 text-destructive',
-  }
-  const statusLabels: Record<string, string> = {
-    AVAILABLE: 'Disponible',
-    CONFIRMED: 'Confirmado',
-    CANCELLED: 'Cancelado',
-  }
+  const todayIso = new Date().toISOString().split('T')[0]
 
-  // Group slots by day
-  const slotsByDay = slots.reduce((acc: Record<string, any[]>, slot: any) => {
-    if (!acc[slot.day]) acc[slot.day] = []
-    acc[slot.day].push(slot)
+  // Count enabled slots for selected court+day (for the summary badge)
+  const enabledCount = days.reduce((acc, day) => {
+    const count = PRESET_TIMES.filter(t => findSlot(selectedCourtId, day, t.start)?.status === 'AVAILABLE').length
+    acc[day] = count
     return acc
-  }, {})
+  }, {} as Record<string, number>)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
-          <p className="text-sm text-muted-foreground">Gestioná los turnos disponibles de tu club</p>
-        </div>
-        <Dialog modal={false} open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="w-4 h-4 mr-2" /> Nuevo Turno
-            </Button>
-          </DialogTrigger>
-          <DialogContent
-            className="bg-card border-border"
-            onPointerDownOutside={(e) => {
-              const target = e.detail.originalEvent.target as HTMLElement
-              if (target.closest('[data-radix-select-content]')) {
-                e.preventDefault()
-              }
-            }}
-          >
-            <DialogHeader>
-              <DialogTitle className="text-foreground">Nuevo Turno</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Día</Label>
-                <Input type="date" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} className="bg-input border-border text-foreground" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Hora inicio</Label>
-                  <Input type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} className="bg-input border-border text-foreground" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Hora fin</Label>
-                  <Input type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} className="bg-input border-border text-foreground" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Cancha</Label>
-                <Select value={form.courtId} onValueChange={(v) => setForm({ ...form, courtId: v })}>
-                  <SelectTrigger className="bg-input border-border text-foreground w-full">
-                    <SelectValue placeholder="Seleccioná cancha" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courts.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button onClick={handleCreate} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={!form.day || !form.startTime || !form.endTime || !form.courtId}>
-                Crear Turno
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
+        <p className="text-sm text-muted-foreground">Tocá un horario para habilitarlo o quitarlo</p>
       </div>
 
       {loading ? (
         <p className="text-muted-foreground text-sm">Cargando...</p>
-      ) : slots.length === 0 ? (
+      ) : courts.length === 0 ? (
         <Card className="bg-card border-border">
           <CardContent className="p-8 text-center">
             <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">No hay turnos. Creá el primero.</p>
+            <p className="text-muted-foreground">No tenés canchas. Creá una primero en la sección Canchas.</p>
           </CardContent>
         </Card>
       ) : (
-        Object.entries(slotsByDay)
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([day, daySlots]) => (
-            <Card key={day} className="bg-card border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-foreground text-base">
-                  {new Date(day + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(daySlots as any[])
-                  .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime))
-                  .map((slot: any) => (
-                    <div key={slot.id} className="flex items-center justify-between bg-muted/30 rounded-lg p-3">
-                      <div className="flex items-center gap-3">
-                        <div>
-                          <p className="text-foreground font-medium text-sm">{slot.startTime} – {slot.endTime}</p>
-                          <p className="text-xs text-muted-foreground">{slot.court?.name}</p>
-                          {slot.matchAssignment && !slot.matchAssignment.cancelledAt && (
-                            <p className="text-xs text-primary mt-1">
-                              {slot.matchAssignment.match?.couple1?.player1?.firstName} & {slot.matchAssignment.match?.couple1?.player2?.firstName} vs {slot.matchAssignment.match?.couple2?.player1?.firstName} & {slot.matchAssignment.match?.couple2?.player2?.firstName}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className={statusColors[slot.status] || ''}>{statusLabels[slot.status] || slot.status}</Badge>
-                        {slot.status === 'CONFIRMED' && (
-                          <Button variant="ghost" size="sm" onClick={() => handleCancel(slot.id)} className="text-destructive text-xs">
-                            Cancelar
-                          </Button>
-                        )}
-                        {slot.status === 'AVAILABLE' && (
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(slot.id)}>
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        )}
-                      </div>
+        <>
+          {/* ── Court selector ── */}
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Cancha</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {courts.map((court) => (
+                <button
+                  key={court.id}
+                  onClick={() => setSelectedCourtId(court.id)}
+                  className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                    selectedCourtId === court.id
+                      ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                      : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                  }`}
+                >
+                  {court.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Day selector ── */}
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Día</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {days.map((day) => {
+                const { weekday, num } = formatDay(day)
+                const isSelected = day === selectedDay
+                const isToday = day === todayIso
+                const count = enabledCount[day] || 0
+                return (
+                  <button
+                    key={day}
+                    onClick={() => setSelectedDay(day)}
+                    className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border transition-all min-w-[52px] relative ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                        : isToday
+                        ? 'bg-primary/10 text-primary border-primary/30'
+                        : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                    }`}
+                  >
+                    <span className="text-[10px] font-semibold">{weekday}</span>
+                    <span className="text-lg font-bold leading-tight">{num}</span>
+                    {count > 0 && (
+                      <span className={`text-[9px] font-bold mt-0.5 ${isSelected ? 'text-primary-foreground/80' : 'text-primary'}`}>
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* ── Legend ── */}
+          <div className="flex gap-4 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-green-500/25 border border-green-500/50 inline-block" />
+              Disponible
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-primary/25 border border-primary/50 inline-block" />
+              Confirmado
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-muted/60 border border-border inline-block" />
+              Sin cargar
+            </span>
+          </div>
+
+          {/* ── Slot grid ── */}
+          <div className="grid grid-cols-2 gap-2">
+            {PRESET_TIMES.map((time) => {
+              const existing = findSlot(selectedCourtId, selectedDay, time.start)
+              const key = `${selectedDay}-${time.start}`
+              const isProcessing = processing.has(key)
+              const isConfirmed = existing?.status === 'CONFIRMED'
+              const isAvailable = existing?.status === 'AVAILABLE'
+
+              return (
+                <button
+                  key={time.start}
+                  onClick={() => handleToggle(time)}
+                  disabled={isProcessing || isConfirmed}
+                  className={`relative p-4 rounded-xl border text-left transition-all select-none ${
+                    isConfirmed
+                      ? 'bg-primary/10 border-primary/40 cursor-default'
+                      : isAvailable
+                      ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
+                      : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
+                  } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                >
+                  {/* Time label */}
+                  <p className={`text-lg font-bold leading-none ${
+                    isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
+                  }`}>
+                    {time.start}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
+
+                  {/* Match info for confirmed slots */}
+                  {isConfirmed && existing?.matchAssignment && (
+                    <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
+                      {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
+                      {' vs '}
+                      {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
+                    </p>
+                  )}
+
+                  {/* Status dot */}
+                  {isAvailable && (
+                    <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                  )}
+
+                  {/* Cancel button for confirmed */}
+                  {isConfirmed && (
+                    <button
+                      onClick={(e) => handleCancelSlot(existing.id, e)}
+                      className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
+                      title="Cancelar turno"
+                    >
+                      ✕
+                    </button>
+                  )}
+
+                  {/* Spinner */}
+                  {isProcessing && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
+                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     </div>
-                  ))}
-              </CardContent>
-            </Card>
-          ))
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>
       )}
     </div>
   )

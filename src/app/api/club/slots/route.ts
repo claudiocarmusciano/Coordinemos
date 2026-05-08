@@ -164,20 +164,30 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate: No overlapping slot exists for the same court on the same day
-    // A slot overlaps if: startTime < existing.endTime AND endTime > existing.startTime
-    const overlappingSlot = await db.slot.findFirst({
-      where: {
-        courtId,
-        day: day.trim(),
-        startTime: { lt: endTime.trim() },
-        endTime: { gt: startTime.trim() },
-      },
+    // Validate: No overlapping slot exists for the same court on the same day.
+    // Special case: endTime "00:00" means midnight (end of day) — treat as "24:00" for comparison.
+    const toMinutes = (t: string) => {
+      if (t === '00:00') return 24 * 60
+      const [h, m] = t.split(':').map(Number)
+      return h * 60 + m
+    }
+    const newStart = toMinutes(startTime.trim())
+    const newEnd = toMinutes(endTime.trim())
+
+    const sameCourtDaySlots = await db.slot.findMany({
+      where: { courtId, day: day.trim() },
+      select: { startTime: true, endTime: true },
+    })
+
+    const overlappingSlot = sameCourtDaySlots.find((s) => {
+      const sStart = toMinutes(s.startTime)
+      const sEnd = toMinutes(s.endTime)
+      return newStart < sEnd && newEnd > sStart
     })
 
     if (overlappingSlot) {
       return NextResponse.json(
-        { message: 'A slot already exists that overlaps with the specified time range on this court and day' },
+        { message: 'Ya existe un turno que se superpone con ese horario en esta cancha' },
         { status: 409 }
       )
     }

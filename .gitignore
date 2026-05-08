@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -52,3 +53,9 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# SQLite database (persisted on Railway volume, not committed to git)
+/db/*.db
+/db/*.db-journal
+/db/*.db-wal
+/db/*.db-shm

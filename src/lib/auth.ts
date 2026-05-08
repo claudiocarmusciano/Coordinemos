@@ -1,9 +1,11 @@
 import { SignJWT, jwtVerify } from 'jose'
-import { createHash, randomBytes } from 'crypto'
+import { createHash } from 'crypto'
+import bcrypt from 'bcryptjs'
 
-const JWT_SECRET = new TextEncoder().encode('coordinemos-secret-key-2024')
+const secret = process.env.JWT_SECRET
+if (!secret) throw new Error('JWT_SECRET env variable is not set')
+const JWT_SECRET = new TextEncoder().encode(secret)
 
-// Types
 export type UserRole = 'ADMIN' | 'CLUB' | 'PLAYER'
 
 export interface AuthUser {
@@ -13,30 +15,23 @@ export interface AuthUser {
   mustChangePassword: boolean
 }
 
-// Hash a password using SHA-256 with a salt (lighter than bcrypt for sandbox environments)
 export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex')
-  const hash = createHash('sha256').update(salt + password).digest('hex')
-  return `${salt}:${hash}`
+  return bcrypt.hash(password, 12)
 }
 
-// Verify a password against a SHA-256 salt:hash
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  // Support both old bcrypt format and new SHA-256 format
+  // Bcrypt hashes (new format)
   if (storedHash.startsWith('$2')) {
-    // Old bcrypt hash - can't verify in this lightweight mode
-    // For migration: the user will need to reset their password
-    return false
+    return bcrypt.compare(password, storedHash)
   }
-  
+
+  // Legacy SHA-256 format (salt:hash) — kept for backward compatibility with existing accounts
   const [salt, hash] = storedHash.split(':')
   if (!salt || !hash) return false
-  
   const computedHash = createHash('sha256').update(salt + password).digest('hex')
   return computedHash === hash
 }
 
-// Create a JWT token for an authenticated user
 export async function createToken(user: AuthUser): Promise<string> {
   return new SignJWT({
     id: user.id,
@@ -50,7 +45,6 @@ export async function createToken(user: AuthUser): Promise<string> {
     .sign(JWT_SECRET)
 }
 
-// Verify a JWT token and return the user payload, or null on failure
 export async function verifyToken(token: string): Promise<AuthUser | null> {
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET)
@@ -65,7 +59,6 @@ export async function verifyToken(token: string): Promise<AuthUser | null> {
   }
 }
 
-// Extract and verify a Bearer token from the Authorization header
 export async function getUserFromRequest(request: Request): Promise<AuthUser | null> {
   const authHeader = request.headers.get('Authorization')
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
