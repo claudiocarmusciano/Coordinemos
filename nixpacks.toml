@@ -1,8 +1,0 @@
-providers = ["bun"]
-
-[phases.build]
-cmds = [
-  "bun install",
-  "bunx prisma generate",
-  "bun run build"
-]
