@@ -101,28 +101,6 @@ export function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-6 pt-4 border-t border-border">
-              <p className="text-xs text-muted-foreground text-center mb-3">Usuarios de prueba</p>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { label: 'Admin', user: 'admin', pass: 'admin123' },
-                  { label: 'Club', user: 'club_baires', pass: 'club123' },
-                  { label: 'Jugador', user: 'martin.g', pass: 'player123' },
-                ].map((demo) => (
-                  <button
-                    key={demo.user}
-                    type="button"
-                    onClick={() => {
-                      setUsername(demo.user)
-                      setPassword(demo.pass)
-                    }}
-                    className="px-2 py-1.5 rounded-lg bg-muted/50 hover:bg-muted text-xs text-muted-foreground hover:text-foreground transition-colors text-center"
-                  >
-                    {demo.label}
-                  </button>
-                ))}
-              </div>
-            </div>
           </CardContent>
         </Card>
       </motion.div>
