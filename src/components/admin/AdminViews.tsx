@@ -32,7 +32,7 @@ interface Club {
   phone: string
   userId: string
   user: { username: string }
-  _count?: { courts: number; players: number; tournaments: number }
+  _count?: { courts: number; memberships: number; tournaments: number }
 }
 
 export function AdminDashboard() {
@@ -89,7 +89,7 @@ export function AdminDashboard() {
               <Building2 className="w-5 h-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-foreground">{clubs.reduce((s, c) => s + (c._count?.players || 0), 0)}</p>
+              <p className="text-2xl font-bold text-foreground">{clubs.reduce((s, c) => s + (c._count?.memberships || 0), 0)}</p>
               <p className="text-xs text-muted-foreground">Jugadores</p>
             </div>
           </CardContent>
@@ -125,7 +125,7 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex gap-2 mt-2">
                       <Badge variant="secondary" className="text-xs">{club._count?.courts || 0} canchas</Badge>
-                      <Badge variant="secondary" className="text-xs">{club._count?.players || 0} jugadores</Badge>
+                      <Badge variant="secondary" className="text-xs">{club._count?.memberships || 0} jugadores</Badge>
                       <Badge variant="secondary" className="text-xs">{club._count?.tournaments || 0} torneos</Badge>
                     </div>
                   </div>
@@ -326,7 +326,7 @@ export function AdminClubs() {
                       <Badge variant="outline" className="text-xs">{club.user?.username}</Badge>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-foreground">{club._count?.courts || 0}</TableCell>
-                    <TableCell className="hidden sm:table-cell text-foreground">{club._count?.players || 0}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-foreground">{club._count?.memberships || 0}</TableCell>
                     <TableCell className="hidden sm:table-cell text-foreground">{club._count?.tournaments || 0}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex gap-1 justify-end">

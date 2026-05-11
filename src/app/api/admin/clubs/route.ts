@@ -24,7 +24,7 @@ export async function GET(request: Request) {
         _count: {
           select: {
             courts: true,
-            players: true,
+            memberships: true,
             tournaments: true,
           },
         },
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       phone: c.phone,
       userId: c.userId,
       user: c.user ? { id: c.user.id, username: c.user.username } : null,
-      _count: { courts: c._count.courts, players: c._count.players, tournaments: c._count.tournaments },
+      _count: { courts: c._count.courts, memberships: c._count.memberships, tournaments: c._count.tournaments },
     }))
 
     return NextResponse.json(mapped)
