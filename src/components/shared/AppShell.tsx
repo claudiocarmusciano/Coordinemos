@@ -36,6 +36,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
     { label: 'Turnos', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
   ],
   PLAYER: [
+    { label: 'Mis Clubes', icon: <Building2 className="w-4 h-4" />, view: 'player-memberships' },
     { label: 'Mis Torneos', icon: <Trophy className="w-4 h-4" />, view: 'player-tournaments' },
     { label: 'Mis Partidos', icon: <Calendar className="w-4 h-4" />, view: 'player-matches' },
     { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'player-notifications', showBadge: true },

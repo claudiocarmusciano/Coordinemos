@@ -47,9 +47,11 @@ export async function POST(request: Request) {
       )
     }
 
-    // Verify player belongs to this club
-    const player = await db.player.findUnique({ where: { id: playerId } })
-    if (!player || player.clubId !== club.id) {
+    // Verify player has a CONFIRMED membership with this club
+    const membership = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId } },
+    })
+    if (!membership || membership.status !== 'CONFIRMED') {
       return NextResponse.json(
         { message: 'Player not found or does not belong to this club' },
         { status: 404 }
@@ -142,9 +144,11 @@ export async function DELETE(request: Request) {
       )
     }
 
-    // Verify player belongs to this club
-    const player = await db.player.findUnique({ where: { id: playerId } })
-    if (!player || player.clubId !== club.id) {
+    // Verify player has a CONFIRMED membership with this club
+    const membershipCheck = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId } },
+    })
+    if (!membershipCheck || membershipCheck.status !== 'CONFIRMED') {
       return NextResponse.json(
         { message: 'Player not found or does not belong to this club' },
         { status: 404 }

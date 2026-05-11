@@ -15,6 +15,7 @@ import {
   Bell,
   BellRing,
   CheckCheck,
+  Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -324,6 +325,107 @@ export function PlayerMatches() {
             </Card>
           )
         })
+      )}
+    </div>
+  )
+}
+
+/* ─── PLAYER MEMBERSHIPS ────────────────────────────── */
+export function PlayerMemberships() {
+  const { token } = useAuthStore()
+  const [memberships, setMemberships] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/player/memberships', token)
+      setMemberships(data)
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { load() }, [load])
+
+  const handleAction = async (id: string, action: 'CONFIRM' | 'REJECT') => {
+    setActing(id)
+    try {
+      await apiFetch(`/api/player/memberships/${id}`, token, {
+        method: 'PUT',
+        body: JSON.stringify({ action }),
+      })
+      toast.success(action === 'CONFIRM' ? 'Te uniste al club' : 'Solicitud rechazada')
+      load()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setActing(null)
+    }
+  }
+
+  const statusBadge = (status: string) => {
+    if (status === 'CONFIRMED') return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-500/15 text-green-400">Confirmado</span>
+    if (status === 'REJECTED') return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-destructive/15 text-destructive">Rechazado</span>
+    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/15 text-yellow-400">Pendiente</span>
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Mis Clubes</h2>
+        <p className="text-sm text-muted-foreground">Clubes en los que participás o tenés solicitudes pendientes</p>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground">Cargando...</p>
+      ) : memberships.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No tenés clubes vinculados</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {memberships.map((m) => (
+            <Card key={m.id} className="bg-card border-border">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-medium text-foreground">{m.club?.name}</h3>
+                      {statusBadge(m.status)}
+                    </div>
+                    {m.club?.address && (
+                      <p className="text-xs text-muted-foreground mt-1">{m.club.address}</p>
+                    )}
+                  </div>
+                  {m.status === 'PENDING' && (
+                    <div className="flex gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        onClick={() => handleAction(m.id, 'CONFIRM')}
+                        disabled={acting === m.id}
+                        className="bg-green-500 hover:bg-green-600 text-white text-xs"
+                      >
+                        {acting === m.id ? '...' : 'Confirmar'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleAction(m.id, 'REJECT')}
+                        disabled={acting === m.id}
+                        className="border-destructive text-destructive hover:bg-destructive/10 text-xs"
+                      >
+                        Rechazar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   )

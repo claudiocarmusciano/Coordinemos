@@ -69,7 +69,7 @@ export function LoginPage() {
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Tu usuario"
+                  placeholder="Tu usuario / DNI"
                   className="bg-input border-border text-foreground h-11"
                   required
                   autoFocus

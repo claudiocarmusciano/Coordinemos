@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     // Run counts in parallel
     const [totalTournaments, totalPlayers, totalCourts, availableSlots] = await Promise.all([
       db.tournament.count({ where: { clubId: club.id } }),
-      db.player.count({ where: { clubId: club.id } }),
+      db.clubMembership.count({ where: { clubId: club.id, status: 'CONFIRMED' } }),
       db.court.count({ where: { clubId: club.id } }),
       db.slot.count({ where: { clubId: club.id, status: 'AVAILABLE' } }),
     ])

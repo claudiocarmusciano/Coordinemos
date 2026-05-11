@@ -25,29 +25,42 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const tournamentId = searchParams.get('tournamentId')
 
+    // Determine which club's slots to show:
+    // If tournamentId provided, use that tournament's club.
+    // Otherwise fall back to first CONFIRMED membership's club.
+    let clubId: string | null = null
+    let dateRange: { gte: string; lte: string } | null = null
+
+    if (tournamentId) {
+      const tournament = await db.tournament.findUnique({ where: { id: tournamentId } })
+      if (tournament) {
+        clubId = tournament.clubId
+        const startDate = tournament.startDate.toISOString().split('T')[0]
+        const endDate = tournament.endDate.toISOString().split('T')[0]
+        dateRange = { gte: startDate, lte: endDate }
+      }
+    }
+
+    if (!clubId) {
+      // Fall back to first CONFIRMED membership
+      const firstMembership = await db.clubMembership.findFirst({
+        where: { playerId: player.id, status: 'CONFIRMED' },
+        orderBy: { createdAt: 'asc' },
+      })
+      clubId = firstMembership?.clubId ?? null
+    }
+
+    if (!clubId) {
+      return NextResponse.json({ slotsByDay: [] })
+    }
+
     const where: Record<string, unknown> = {
-      clubId: player.clubId,
+      clubId,
       status: 'AVAILABLE',
     }
 
-    // If tournamentId is provided, filter slots to the tournament's date range
-    if (tournamentId) {
-      const tournament = await db.tournament.findUnique({
-        where: { id: tournamentId },
-      })
-
-      if (tournament && tournament.clubId === player.clubId) {
-        // Get the date range as YYYY-MM-DD strings
-        const startDate = tournament.startDate.toISOString().split('T')[0]
-        const endDate = tournament.endDate.toISOString().split('T')[0]
-
-        // Filter slots whose day falls within the tournament date range
-        // SQLite stores day as string, so we can compare lexicographically for ISO dates
-        where.day = {
-          gte: startDate,
-          lte: endDate,
-        }
-      }
+    if (dateRange) {
+      where.day = dateRange
     }
 
     const slots = await db.slot.findMany({

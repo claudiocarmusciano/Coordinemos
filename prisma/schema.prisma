@@ -33,7 +33,7 @@ model Club {
 
   courts      Court[]
   tournaments Tournament[]
-  players     Player[]
+  memberships ClubMembership[]
   slots       Slot[]
 }
 
@@ -67,15 +67,28 @@ model Player {
   firstName String
   lastName  String
   phone     String @default("")
-  clubId    String
-  club      Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
   userId    String @unique
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  memberships       ClubMembership[]
   tournamentPlayers TournamentPlayer[]
-  coupleAsPlayer1  Couple[]           @relation("Player1")
-  coupleAsPlayer2  Couple[]           @relation("Player2")
-  slotPreferences  SlotPreference[]
+  coupleAsPlayer1   Couple[]           @relation("Player1")
+  coupleAsPlayer2   Couple[]           @relation("Player2")
+  slotPreferences   SlotPreference[]
+}
+
+// ─── CLUB MEMBERSHIPS ───────────────────────────────────────
+model ClubMembership {
+  id        String   @id @default(cuid())
+  clubId    String
+  playerId  String
+  status    String   @default("PENDING") // PENDING | CONFIRMED | REJECTED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  club      Club     @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([clubId, playerId])
 }
 
 // ─── TOURNAMENT PLAYERS (many-to-many) ──────────────────────

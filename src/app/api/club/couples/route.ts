@@ -138,17 +138,21 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate: Both players belong to the club
-    const player1 = await db.player.findUnique({ where: { id: player1Id } })
-    if (!player1 || player1.clubId !== club.id) {
+    // Validate: Both players have CONFIRMED membership with this club
+    const membership1 = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId: player1Id } },
+    })
+    if (!membership1 || membership1.status !== 'CONFIRMED') {
       return NextResponse.json(
         { message: 'Player 1 not found or does not belong to this club' },
         { status: 400 }
       )
     }
 
-    const player2 = await db.player.findUnique({ where: { id: player2Id } })
-    if (!player2 || player2.clubId !== club.id) {
+    const membership2 = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId: player2Id } },
+    })
+    if (!membership2 || membership2.status !== 'CONFIRMED') {
       return NextResponse.json(
         { message: 'Player 2 not found or does not belong to this club' },
         { status: 400 }

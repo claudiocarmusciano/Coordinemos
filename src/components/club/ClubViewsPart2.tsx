@@ -154,7 +154,13 @@ export function ClubPlayers() {
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false)
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null)
   const [selectedTournament, setSelectedTournament] = useState('')
-  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '', username: '', password: '' })
+
+  // Two-step form state
+  const [step, setStep] = useState<'lookup' | 'found' | 'create'>('lookup')
+  const [dniInput, setDniInput] = useState('')
+  const [lookupResult, setLookupResult] = useState<{ firstName: string; lastName: string; phone: string } | null>(null)
+  const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', phone: '', password: '' })
+  const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -170,24 +176,65 @@ export function ClubPlayers() {
 
   useEffect(() => { load() }, [load])
 
-  const handleCreate = async () => {
+  const resetDialog = () => {
+    setStep('lookup')
+    setDniInput('')
+    setLookupResult(null)
+    setCreateForm({ firstName: '', lastName: '', phone: '', password: '' })
+    setSubmitting(false)
+  }
+
+  const handleLookup = async () => {
+    const dni = dniInput.trim()
+    if (!dni) { toast.error('Ingresá un DNI'); return }
+    if (!/^\d+$/.test(dni)) { toast.error('El DNI debe ser numérico'); return }
     try {
-      await apiFetch('/api/club/players', token, {
-        method: 'POST',
-        body: JSON.stringify(form),
-      })
-      toast.success('Jugador creado')
-      setDialogOpen(false)
-      setForm({ firstName: '', lastName: '', phone: '', username: '', password: '' })
-      load()
+      const data = await apiFetch(`/api/club/players/lookup?dni=${dni}`, token)
+      if (data.found) {
+        setLookupResult(data.player)
+        setStep('found')
+      } else {
+        setLookupResult(null)
+        setStep('create')
+      }
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
 
+  const handleSendRequest = async () => {
+    setSubmitting(true)
+    try {
+      await apiFetch('/api/club/players', token, {
+        method: 'POST',
+        body: JSON.stringify({ dni: dniInput.trim() }),
+      })
+      toast.success('Solicitud enviada. El jugador debe confirmar.')
+      setDialogOpen(false)
+      resetDialog()
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setSubmitting(false) }
+  }
+
+  const handleCreate = async () => {
+    setSubmitting(true)
+    try {
+      await apiFetch('/api/club/players', token, {
+        method: 'POST',
+        body: JSON.stringify({ dni: dniInput.trim(), ...createForm }),
+      })
+      toast.success('Jugador creado y agregado al club')
+      setDialogOpen(false)
+      resetDialog()
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setSubmitting(false) }
+  }
+
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este jugador?')) return
+    if (!confirm('¿Quitar este jugador del club?')) return
     try {
       await apiFetch(`/api/club/players/${id}`, token, { method: 'DELETE' })
-      toast.success('Jugador eliminado')
+      toast.success('Jugador quitado del club')
       load()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
@@ -223,43 +270,88 @@ export function ClubPlayers() {
           <h2 className="text-xl font-semibold text-foreground">Jugadores</h2>
           <p className="text-sm text-muted-foreground">Gestioná los jugadores de tu club</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetDialog() }}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <UserPlus className="w-4 h-4 mr-2" /> Nuevo Jugador
+              <UserPlus className="w-4 h-4 mr-2" /> Agregar Jugador
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-card border-border">
             <DialogHeader>
-              <DialogTitle className="text-foreground">Nuevo Jugador</DialogTitle>
+              <DialogTitle className="text-foreground">Agregar Jugador</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+
+            {step === 'lookup' && (
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Nombre</Label>
-                  <Input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="bg-input border-border text-foreground" />
+                  <Label className="text-muted-foreground">DNI del jugador</Label>
+                  <Input
+                    value={dniInput}
+                    onChange={(e) => setDniInput(e.target.value.replace(/\D/g, ''))}
+                    className="bg-input border-border text-foreground"
+                    placeholder="Ej: 30123456"
+                    inputMode="numeric"
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Apellido</Label>
-                  <Input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="bg-input border-border text-foreground" />
+                <Button onClick={handleLookup} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                  Buscar
+                </Button>
+              </div>
+            )}
+
+            {step === 'found' && lookupResult && (
+              <div className="space-y-4">
+                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+                  <p className="text-green-400 font-medium text-sm">Jugador encontrado</p>
+                  <p className="text-foreground font-semibold mt-1">{lookupResult.firstName} {lookupResult.lastName}</p>
+                  {lookupResult.phone && <p className="text-muted-foreground text-xs mt-0.5">Tel: {lookupResult.phone}</p>}
+                </div>
+                <p className="text-sm text-muted-foreground">Se enviará una solicitud de vinculación al jugador. Deberá confirmarla desde su panel.</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setStep('lookup')} className="flex-1 border-border text-muted-foreground">
+                    Volver
+                  </Button>
+                  <Button onClick={handleSendRequest} disabled={submitting} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? 'Enviando...' : 'Enviar solicitud'}
+                  </Button>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Teléfono</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="bg-input border-border text-foreground" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Usuario</Label>
-                  <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} className="bg-input border-border text-foreground" />
+            )}
+
+            {step === 'create' && (
+              <div className="space-y-4">
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+                  <p className="text-yellow-400 text-sm font-medium">DNI no registrado</p>
+                  <p className="text-muted-foreground text-xs mt-0.5">Completá los datos para crear el jugador.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Nombre</Label>
+                    <Input value={createForm.firstName} onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })} className="bg-input border-border text-foreground" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-muted-foreground">Apellido</Label>
+                    <Input value={createForm.lastName} onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })} className="bg-input border-border text-foreground" />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Contraseña</Label>
-                  <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="bg-input border-border text-foreground" />
+                  <Label className="text-muted-foreground">Teléfono (opcional)</Label>
+                  <Input value={createForm.phone} onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Contraseña inicial</Label>
+                  <Input type="password" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} className="bg-input border-border text-foreground" />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setStep('lookup')} className="flex-1 border-border text-muted-foreground">
+                    Volver
+                  </Button>
+                  <Button onClick={handleCreate} disabled={submitting} className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {submitting ? 'Creando...' : 'Crear jugador'}
+                  </Button>
                 </div>
               </div>
-              <Button onClick={handleCreate} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">Crear Jugador</Button>
-            </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -270,7 +362,7 @@ export function ClubPlayers() {
         <Card className="bg-card border-border">
           <CardContent className="p-8 text-center">
             <Users className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">No hay jugadores. Creá el primero.</p>
+            <p className="text-muted-foreground">No hay jugadores confirmados. Agregá el primero.</p>
           </CardContent>
         </Card>
       ) : (
@@ -281,7 +373,7 @@ export function ClubPlayers() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-medium text-foreground">{p.firstName} {p.lastName}</h3>
-                    <p className="text-xs text-muted-foreground">Usuario: {p.user?.username}</p>
+                    <p className="text-xs text-muted-foreground">DNI: {p.user?.username}</p>
                     {p.phone && <p className="text-xs text-muted-foreground">Tel: {p.phone}</p>}
                     <div className="flex flex-wrap gap-1 mt-2">
                       {p.tournamentPlayers?.map((tp: any) => (

@@ -4,7 +4,7 @@ import { getUserFromRequest } from '@/lib/auth'
 
 type RouteParams = { params: Promise<{ id: string }> }
 
-// PUT /api/club/players/[id] — Update player info
+// PUT /api/club/players/[id] — Update player info (only CONFIRMED members)
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const clubUser = await getUserFromRequest(request)
@@ -34,9 +34,11 @@ export async function PUT(request: Request, { params }: RouteParams) {
       )
     }
 
-    // Verify player belongs to this club
-    const player = await db.player.findUnique({ where: { id } })
-    if (!player || player.clubId !== club.id) {
+    // Verify player has a CONFIRMED membership with this club
+    const membership = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId: id } },
+    })
+    if (!membership || membership.status !== 'CONFIRMED') {
       return NextResponse.json(
         { message: 'Player not found or does not belong to this club' },
         { status: 404 }
@@ -72,7 +74,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/club/players/[id] — Delete player and associated User
+// DELETE /api/club/players/[id] — Remove the ClubMembership (does NOT delete the user)
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
     const clubUser = await getUserFromRequest(request)
@@ -93,27 +95,27 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const { id } = await params
 
-    // Verify player belongs to this club
-    const player = await db.player.findUnique({
-      where: { id },
-      include: { user: true },
+    // Verify player has a membership with this club
+    const membership = await db.clubMembership.findUnique({
+      where: { clubId_playerId: { clubId: club.id, playerId: id } },
     })
-    if (!player || player.clubId !== club.id) {
+    if (!membership) {
       return NextResponse.json(
         { message: 'Player not found or does not belong to this club' },
         { status: 404 }
       )
     }
 
-    // Delete the user (cascade will handle the player and related records)
-    // Player has onDelete: Cascade on userId, so deleting the User will delete the Player
-    await db.user.delete({ where: { id: player.userId } })
+    // Only remove the membership — do NOT delete the user or player
+    await db.clubMembership.delete({
+      where: { clubId_playerId: { clubId: club.id, playerId: id } },
+    })
 
-    return NextResponse.json({ success: true, message: 'Player deleted successfully' })
+    return NextResponse.json({ success: true, message: 'Jugador eliminado del club' })
   } catch (error) {
-    console.error('Error deleting player:', error)
+    console.error('Error removing player from club:', error)
     return NextResponse.json(
-      { message: 'An error occurred while deleting the player' },
+      { message: 'An error occurred while removing the player' },
       { status: 500 }
     )
   }

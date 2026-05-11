@@ -33,7 +33,6 @@ export async function GET(request: Request) {
       })
       if (player) {
         result.playerId = player.id
-        result.clubId = player.clubId
       }
     }
 

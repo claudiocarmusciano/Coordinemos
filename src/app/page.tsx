@@ -9,7 +9,7 @@ import { AdminDashboard, AdminClubs } from '@/components/admin/AdminViews'
 import { ClubDashboard, ClubCourts } from '@/components/club/ClubViewsPart1'
 import { ClubTournaments, ClubPlayers } from '@/components/club/ClubViewsPart2'
 import { ClubCouples, ClubMatches, ClubSlots } from '@/components/club/ClubViewsPart3'
-import { PlayerTournaments, PlayerMatches, PlayerNotifications } from '@/components/player/PlayerViews'
+import { PlayerTournaments, PlayerMatches, PlayerNotifications, PlayerMemberships } from '@/components/player/PlayerViews'
 
 async function initAdmin() {
   try {
@@ -32,6 +32,7 @@ function ViewRouter() {
     case 'club-couples': return <ClubCouples />
     case 'club-matches': return <ClubMatches />
     case 'club-slots': return <ClubSlots />
+    case 'player-memberships': return <PlayerMemberships />
     case 'player-tournaments': return <PlayerTournaments />
     case 'player-matches': return <PlayerMatches />
     case 'player-notifications': return <PlayerNotifications />
@@ -44,7 +45,7 @@ function getDefaultView(role: string): string {
   switch (role) {
     case 'ADMIN': return 'admin-dashboard'
     case 'CLUB': return 'club-dashboard'
-    case 'PLAYER': return 'player-tournaments'
+    case 'PLAYER': return 'player-memberships'
     default: return 'login'
   }
 }

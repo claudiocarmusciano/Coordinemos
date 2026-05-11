@@ -37,10 +37,17 @@ async function checkAndConfirmMatch(matchId: string) {
     if (playerIds.size === 4) {
       const [day, startTime, endTime] = slotTime.split('|')
 
+      // Find the club via the tournament
+      const matchTournament = await db.tournament.findUnique({
+        where: { id: match.tournamentId },
+        select: { clubId: true },
+      })
+      if (!matchTournament) continue
+
       // Find an available slot for this day+time in the club
       const availableSlot = await db.slot.findFirst({
         where: {
-          clubId: match.couple1.player1.clubId,
+          clubId: matchTournament.clubId,
           day,
           startTime,
           endTime,
@@ -66,7 +73,7 @@ async function checkAndConfirmMatch(matchId: string) {
 
         // Create notifications for all 4 players
         const club = await db.club.findFirst({
-          where: { id: match.couple1.player1.clubId },
+          where: { id: matchTournament.clubId },
         })
         const courtName = availableSlot.court?.name || 'cancha asignada'
         const msg = `¡Turno confirmado! ${match.couple1.player1.firstName} ${match.couple1.player1.lastName} & ${match.couple1.player2.firstName} ${match.couple1.player2.lastName} vs ${match.couple2.player1.firstName} ${match.couple2.player1.lastName} & ${match.couple2.player2.firstName} ${match.couple2.player2.lastName} - ${day} de ${startTime} a ${endTime} en ${courtName}`
@@ -188,12 +195,22 @@ export async function POST(request: Request) {
       )
     }
 
+    // Resolve the club for this match's tournament
+    const matchTournamentInfo = await db.tournament.findUnique({
+      where: { id: match.tournamentId },
+      select: { clubId: true },
+    })
+    if (!matchTournamentInfo) {
+      return NextResponse.json({ message: 'Tournament not found' }, { status: 404 })
+    }
+    const matchClubId = matchTournamentInfo.clubId
+
     // ── Validation (d): Each slot day+startTime+endTime must correspond to at least one AVAILABLE slot in the club ──
     for (let i = 0; i < slots.length; i++) {
       const s = slots[i]
       const availableSlot = await db.slot.findFirst({
         where: {
-          clubId: player.clubId,
+          clubId: matchClubId,
           day: s.day,
           startTime: s.startTime,
           endTime: s.endTime,
@@ -222,7 +239,7 @@ export async function POST(request: Request) {
           endTime: s.endTime,
           match: {
             tournamentId: { not: match.tournamentId },
-            tournament: { clubId: player.clubId },
+            tournament: { clubId: matchClubId },
           },
         },
         include: {
