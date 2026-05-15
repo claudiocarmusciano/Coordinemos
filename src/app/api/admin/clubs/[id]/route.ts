@@ -77,16 +77,38 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     const { id } = await params
 
-    const existingClub = await db.club.findUnique({ where: { id } })
+    const existingClub = await db.club.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            courts: true,
+            tournaments: true,
+            memberships: true,
+          },
+        },
+      },
+    })
     if (!existingClub) {
       return NextResponse.json(
-        { message: 'Club not found' },
+        { message: 'Club not encontrado' },
         { status: 404 }
       )
     }
 
-    // Deleting the club cascades to courts, tournaments, players, slots, etc.
-    // Deleting the user cascades to the club as well, but we delete the club directly
+    const { courts, tournaments, memberships } = existingClub._count
+    if (courts > 0 || tournaments > 0 || memberships > 0) {
+      const items = [
+        courts > 0 ? `${courts} cancha${courts > 1 ? 's' : ''}` : '',
+        tournaments > 0 ? `${tournaments} torneo${tournaments > 1 ? 's' : ''}` : '',
+        memberships > 0 ? `${memberships} jugador${memberships > 1 ? 'es' : ''}` : '',
+      ].filter(Boolean).join(', ')
+      return NextResponse.json(
+        { message: `No se puede eliminar el club porque tiene ${items}. Eliminá primero esos datos.` },
+        { status: 409 }
+      )
+    }
+
     await db.club.delete({ where: { id } })
 
     return NextResponse.json({ success: true, message: 'Club deleted successfully' })
