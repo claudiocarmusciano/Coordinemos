@@ -23,9 +23,12 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
 
+    const today = new Date().toISOString().split('T')[0]
+
     const where: Record<string, unknown> = {
       clubId: club.id,
       status: { in: ['AVAILABLE', 'CONFIRMED'] },
+      day: { gte: today },
     }
     const statusParam = searchParams.get('status')
     if (statusParam) {

@@ -453,12 +453,14 @@ function getUpcomingDays(count = 14): string[] {
   })
 }
 
+const ALL_COURTS = 'all'
+
 export function ClubSlots() {
   const { token } = useAuthStore()
   const [slots, setSlots] = useState<any[]>([])
   const [courts, setCourts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedCourtId, setSelectedCourtId] = useState('')
+  const [selectedCourtId, setSelectedCourtId] = useState<string>(ALL_COURTS)
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
   const [processing, setProcessing] = useState<Set<string>>(new Set())
 
@@ -472,22 +474,22 @@ export function ClubSlots() {
       ])
       setSlots(slotData)
       setCourts(courtData)
-      if (courtData.length > 0) {
-        setSelectedCourtId((prev) => prev || courtData[0].id)
-      }
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setLoading(false) }
   }, [token])
 
   useEffect(() => { loadData() }, [loadData])
 
+  const isAllCourts = selectedCourtId === ALL_COURTS
+
   const findSlot = (courtId: string, day: string, start: string) =>
     slots.find((s) => s.courtId === courtId && s.day === day && s.startTime === start)
 
-  const handleToggle = async (time: { start: string; end: string }) => {
-    if (!selectedCourtId) return
-    const existing = findSlot(selectedCourtId, selectedDay, time.start)
-    const key = `${selectedDay}-${time.start}`
+  const handleToggle = async (time: { start: string; end: string }, courtIdForToggle?: string) => {
+    const targetCourtId = courtIdForToggle ?? selectedCourtId
+    if (!targetCourtId || targetCourtId === ALL_COURTS) return
+    const existing = findSlot(targetCourtId, selectedDay, time.start)
+    const key = `${targetCourtId}-${selectedDay}-${time.start}`
     if (processing.has(key)) return
 
     if (existing?.status === 'CONFIRMED') {
@@ -502,7 +504,7 @@ export function ClubSlots() {
       } else {
         await apiFetch('/api/club/slots', token, {
           method: 'POST',
-          body: JSON.stringify({ day: selectedDay, startTime: time.start, endTime: time.end, courtId: selectedCourtId }),
+          body: JSON.stringify({ day: selectedDay, startTime: time.start, endTime: time.end, courtId: targetCourtId }),
         })
       }
       await loadData()
@@ -536,9 +538,14 @@ export function ClubSlots() {
 
   const todayIso = new Date().toISOString().split('T')[0]
 
-  // Count enabled slots for selected court+day (for the summary badge)
+  // Count available slots for the selected court (or all courts) per day
   const enabledCount = days.reduce((acc, day) => {
-    const count = PRESET_TIMES.filter(t => findSlot(selectedCourtId, day, t.start)?.status === 'AVAILABLE').length
+    let count: number
+    if (isAllCourts) {
+      count = slots.filter((s) => s.day === day && s.status === 'AVAILABLE').length
+    } else {
+      count = PRESET_TIMES.filter(t => findSlot(selectedCourtId, day, t.start)?.status === 'AVAILABLE').length
+    }
     acc[day] = count
     return acc
   }, {} as Record<string, number>)
@@ -565,6 +572,17 @@ export function ClubSlots() {
           <div>
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Cancha</p>
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {/* "Todas" option */}
+              <button
+                onClick={() => setSelectedCourtId(ALL_COURTS)}
+                className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                  isAllCourts
+                    ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                    : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                }`}
+              >
+                Todas
+              </button>
               {courts.map((court) => (
                 <button
                   key={court.id}
@@ -632,70 +650,148 @@ export function ClubSlots() {
           </div>
 
           {/* ── Slot grid ── */}
-          <div className="grid grid-cols-2 gap-2">
-            {PRESET_TIMES.map((time) => {
-              const existing = findSlot(selectedCourtId, selectedDay, time.start)
-              const key = `${selectedDay}-${time.start}`
-              const isProcessing = processing.has(key)
-              const isConfirmed = existing?.status === 'CONFIRMED'
-              const isAvailable = existing?.status === 'AVAILABLE'
-
-              return (
-                <button
-                  key={time.start}
-                  onClick={() => handleToggle(time)}
-                  disabled={isProcessing || isConfirmed}
-                  className={`relative p-4 rounded-xl border text-left transition-all select-none ${
-                    isConfirmed
-                      ? 'bg-primary/10 border-primary/40 cursor-default'
-                      : isAvailable
-                      ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
-                      : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
-                  } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
-                >
-                  {/* Time label */}
-                  <p className={`text-lg font-bold leading-none ${
-                    isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
-                  }`}>
-                    {time.start}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
-
-                  {/* Match info for confirmed slots */}
-                  {isConfirmed && existing?.matchAssignment && (
-                    <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
-                      {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
-                      {' vs '}
-                      {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
-                    </p>
-                  )}
-
-                  {/* Status dot */}
-                  {isAvailable && (
-                    <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
-                  )}
-
-                  {/* Cancel button for confirmed */}
-                  {isConfirmed && (
-                    <button
-                      onClick={(e) => handleCancelSlot(existing.id, e)}
-                      className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
-                      title="Cancelar turno"
-                    >
-                      ✕
-                    </button>
-                  )}
-
-                  {/* Spinner */}
-                  {isProcessing && (
-                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
-                      <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          {isAllCourts ? (
+            /* All courts view: grouped by court */
+            <div className="space-y-6">
+              {courts.map((court) => {
+                const courtSlots = PRESET_TIMES.filter(t =>
+                  slots.some(s => s.courtId === court.id && s.day === selectedDay && s.startTime === t.start)
+                )
+                const allCourtSlots = slots.filter(s => s.courtId === court.id && s.day === selectedDay)
+                if (allCourtSlots.length === 0) return null
+                return (
+                  <div key={court.id}>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{court.name}</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {PRESET_TIMES.filter(t =>
+                        slots.some(s => s.courtId === court.id && s.day === selectedDay && s.startTime === t.start)
+                      ).map((time) => {
+                        const existing = findSlot(court.id, selectedDay, time.start)
+                        const key = `${court.id}-${selectedDay}-${time.start}`
+                        const isProcessing = processing.has(key)
+                        const isConfirmed = existing?.status === 'CONFIRMED'
+                        const isAvailable = existing?.status === 'AVAILABLE'
+                        return (
+                          <button
+                            key={time.start}
+                            onClick={() => handleToggle(time, court.id)}
+                            disabled={isProcessing || isConfirmed}
+                            className={`relative p-4 rounded-xl border text-left transition-all select-none ${
+                              isConfirmed
+                                ? 'bg-primary/10 border-primary/40 cursor-default'
+                                : isAvailable
+                                ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
+                                : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
+                            } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                          >
+                            <p className={`text-lg font-bold leading-none ${
+                              isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
+                            }`}>
+                              {time.start}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
+                            {isConfirmed && existing?.matchAssignment && (
+                              <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
+                                {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
+                                {' vs '}
+                                {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
+                              </p>
+                            )}
+                            {isAvailable && (
+                              <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                            )}
+                            {isConfirmed && (
+                              <button
+                                onClick={(e) => handleCancelSlot(existing.id, e)}
+                                className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
+                                title="Cancelar turno"
+                              >
+                                ✕
+                              </button>
+                            )}
+                            {isProcessing && (
+                              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
+                                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              </div>
+                            )}
+                          </button>
+                        )
+                      })}
                     </div>
-                  )}
-                </button>
-              )
-            })}
-          </div>
+                  </div>
+                )
+              })}
+              {courts.every(court => !slots.some(s => s.courtId === court.id && s.day === selectedDay)) && (
+                <p className="text-sm text-muted-foreground text-center py-4">No hay turnos cargados para este día en ninguna cancha.</p>
+              )}
+            </div>
+          ) : (
+            /* Single court view */
+            <div className="grid grid-cols-2 gap-2">
+              {PRESET_TIMES.map((time) => {
+                const existing = findSlot(selectedCourtId, selectedDay, time.start)
+                const key = `${selectedCourtId}-${selectedDay}-${time.start}`
+                const isProcessing = processing.has(key)
+                const isConfirmed = existing?.status === 'CONFIRMED'
+                const isAvailable = existing?.status === 'AVAILABLE'
+
+                return (
+                  <button
+                    key={time.start}
+                    onClick={() => handleToggle(time)}
+                    disabled={isProcessing || isConfirmed}
+                    className={`relative p-4 rounded-xl border text-left transition-all select-none ${
+                      isConfirmed
+                        ? 'bg-primary/10 border-primary/40 cursor-default'
+                        : isAvailable
+                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
+                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
+                    } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                  >
+                    {/* Time label */}
+                    <p className={`text-lg font-bold leading-none ${
+                      isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
+                    }`}>
+                      {time.start}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
+
+                    {/* Match info for confirmed slots */}
+                    {isConfirmed && existing?.matchAssignment && (
+                      <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
+                        {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
+                        {' vs '}
+                        {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
+                      </p>
+                    )}
+
+                    {/* Status dot */}
+                    {isAvailable && (
+                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                    )}
+
+                    {/* Cancel button for confirmed */}
+                    {isConfirmed && (
+                      <button
+                        onClick={(e) => handleCancelSlot(existing.id, e)}
+                        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
+                        title="Cancelar turno"
+                      >
+                        ✕
+                      </button>
+                    )}
+
+                    {/* Spinner */}
+                    {isProcessing && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </>
       )}
     </div>

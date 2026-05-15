@@ -28,6 +28,8 @@ import {
   Trash2,
   UserPlus,
   X,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -161,6 +163,7 @@ export function ClubPlayers() {
   const [lookupResult, setLookupResult] = useState<{ firstName: string; lastName: string; phone: string } | null>(null)
   const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', phone: '', password: '' })
   const [submitting, setSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -340,7 +343,22 @@ export function ClubPlayers() {
                 </div>
                 <div className="space-y-2">
                   <Label className="text-muted-foreground">Contraseña inicial</Label>
-                  <Input type="password" value={createForm.password} onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })} className="bg-input border-border text-foreground" />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={createForm.password}
+                      onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+                      className="bg-input border-border text-foreground pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep('lookup')} className="flex-1 border-border text-muted-foreground">

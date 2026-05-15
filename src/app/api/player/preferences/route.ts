@@ -72,11 +72,14 @@ async function checkAndConfirmMatch(matchId: string) {
         ])
 
         // Create notifications for all 4 players
-        const club = await db.club.findFirst({
-          where: { id: matchTournament.clubId },
+        const tournament = await db.tournament.findUnique({
+          where: { id: match.tournamentId },
+          select: { name: true, club: { select: { name: true, userId: true } } },
         })
+        const tournamentName = tournament?.name || 'Torneo'
+        const clubName = tournament?.club?.name || 'Club'
         const courtName = availableSlot.court?.name || 'cancha asignada'
-        const msg = `¡Turno confirmado! ${match.couple1.player1.firstName} ${match.couple1.player1.lastName} & ${match.couple1.player2.firstName} ${match.couple1.player2.lastName} vs ${match.couple2.player1.firstName} ${match.couple2.player1.lastName} & ${match.couple2.player2.firstName} ${match.couple2.player2.lastName} - ${day} de ${startTime} a ${endTime} en ${courtName}`
+        const msg = `¡Turno confirmado! Torneo: ${tournamentName} | Club: ${clubName} | Cancha: ${courtName} | ${day} de ${startTime} a ${endTime} | ${match.couple1.player1.firstName} ${match.couple1.player1.lastName} & ${match.couple1.player2.firstName} ${match.couple1.player2.lastName} vs ${match.couple2.player1.firstName} ${match.couple2.player1.lastName} & ${match.couple2.player2.firstName} ${match.couple2.player2.lastName}`
 
         for (const p of players) {
           await db.notification.create({
@@ -90,10 +93,11 @@ async function checkAndConfirmMatch(matchId: string) {
         }
 
         // Notify club
-        if (club) {
+        const clubUserId = tournament?.club?.userId
+        if (clubUserId) {
           await db.notification.create({
             data: {
-              userId: club.userId,
+              userId: clubUserId,
               message: `Turno confirmado para partido: ${match.couple1.player1.firstName} & ${match.couple1.player2.firstName} vs ${match.couple2.player1.firstName} & ${match.couple2.player2.firstName} - ${day} ${startTime}-${endTime}`,
               type: 'SLOT_CONFIRMED',
               relatedId: match.id,

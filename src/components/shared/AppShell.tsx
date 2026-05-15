@@ -74,6 +74,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!user) return <>{children}</>
 
+  // When mustChangePassword is true, render ONLY the change-password page
+  // with no nav/sidebar/data-fetching components to avoid spurious error toasts.
+  if (user.mustChangePassword) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        {children}
+      </div>
+    )
+  }
+
   const items = NAV_ITEMS[user.role] || []
   const roleLabel = user.role === 'ADMIN' ? 'Administrador' : user.role === 'CLUB' ? 'Club' : 'Jugador'
 
