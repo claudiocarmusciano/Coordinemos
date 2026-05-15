@@ -6,6 +6,7 @@ import { getUserFromRequest } from '@/lib/auth'
 // When all 4 players in a match agree on a day+startTime+endTime,
 // confirm the match by creating a MatchAssignment and updating the slot.
 async function checkAndConfirmMatch(matchId: string) {
+  try {
   // Get the match with all 4 players
   const match = await db.match.findUnique({
     where: { id: matchId },
@@ -13,9 +14,13 @@ async function checkAndConfirmMatch(matchId: string) {
       couple1: { include: { player1: true, player2: true } },
       couple2: { include: { player1: true, player2: true } },
       slotPreferences: true,
+      matchAssignment: true,
     },
   })
   if (!match) return
+
+  // If already confirmed, skip
+  if (match.matchAssignment && !match.matchAssignment.cancelledAt) return
 
   const players = [
     match.couple1.player1,
@@ -23,6 +28,9 @@ async function checkAndConfirmMatch(matchId: string) {
     match.couple2.player1,
     match.couple2.player2,
   ]
+
+  const requiredPlayerIds = new Set(players.map(p => p.id))
+  console.log(`[checkAndConfirmMatch] matchId=${matchId} requiredPlayers=${[...requiredPlayerIds]} totalPrefs=${match.slotPreferences.length}`)
 
   // For each unique day+startTime+endTime that has preferences
   const slotTimes = new Map<string, Set<string>>() // "day|startTime|endTime" -> Set of playerIds
@@ -32,9 +40,13 @@ async function checkAndConfirmMatch(matchId: string) {
     slotTimes.get(key)!.add(pref.playerId)
   }
 
+  console.log(`[checkAndConfirmMatch] slotTimes keys: ${[...slotTimes.entries()].map(([k,v]) => `${k}(${v.size})`).join(', ')}`)
+
   // Find a day+time where ALL 4 players agree
   for (const [slotTime, playerIds] of slotTimes) {
-    if (playerIds.size === 4) {
+    // Check that all required players are in this set (not just any 4)
+    const allAgree = [...requiredPlayerIds].every(id => playerIds.has(id))
+    if (allAgree) {
       const [day, startTime, endTime] = slotTime.split('|')
 
       // Find the club via the tournament
@@ -56,7 +68,9 @@ async function checkAndConfirmMatch(matchId: string) {
         include: { court: { select: { name: true } } },
       })
 
+      console.log(`[checkAndConfirmMatch] Looking for slot: clubId=${matchTournament.clubId} day=${day} startTime=${startTime} endTime=${endTime}`)
       if (availableSlot) {
+        console.log(`[checkAndConfirmMatch] Found slot ${availableSlot.id}, confirming...`)
         // Confirm the match
         await db.$transaction([
           db.matchAssignment.create({
@@ -105,9 +119,15 @@ async function checkAndConfirmMatch(matchId: string) {
           })
         }
 
+        console.log(`[checkAndConfirmMatch] Match ${matchId} confirmed successfully`)
         break // Only confirm one slot per match
+      } else {
+        console.log(`[checkAndConfirmMatch] No AVAILABLE slot found for that time — slot may not exist or already CONFIRMED`)
       }
     }
+  }
+  } catch (err) {
+    console.error('[checkAndConfirmMatch] Error:', err)
   }
 }
 
