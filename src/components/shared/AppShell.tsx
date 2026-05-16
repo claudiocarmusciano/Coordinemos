@@ -72,6 +72,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, [user?.role, token])
 
+  // Re-poll immediately when navigating away from notifications (to reflect read status)
+  useEffect(() => {
+    if (user?.role !== 'PLAYER' || !token) return
+    apiFetch('/api/player/notifications?count=true', token)
+      .then((data) => setUnreadCount(data.count || 0))
+      .catch(() => {})
+  }, [currentView])
+
   if (!user) return <>{children}</>
 
   // When mustChangePassword is true, render ONLY the change-password page
