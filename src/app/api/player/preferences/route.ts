@@ -249,48 +249,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // ── Validation (c): Cross-tournament blocking ──
-    // For each slot preference, check if the player already has a preference for
-    // the same day+startTime+endTime in a DIFFERENT tournament of the same club.
-    const conflicts: string[] = []
-
-    for (const s of slots) {
-      const conflictingPrefs = await db.slotPreference.findMany({
-        where: {
-          playerId: player.id,
-          day: s.day,
-          startTime: s.startTime,
-          endTime: s.endTime,
-          match: {
-            tournamentId: { not: match.tournamentId },
-            tournament: { clubId: matchClubId },
-          },
-        },
-        include: {
-          match: {
-            include: {
-              tournament: { select: { name: true } },
-            },
-          },
-        },
-      })
-
-      for (const cp of conflictingPrefs) {
-        conflicts.push(
-          `${s.day} ${s.startTime}-${s.endTime} conflicts with tournament "${cp.match.tournament.name}"`
-        )
-      }
-    }
-
-    if (conflicts.length > 0) {
-      return NextResponse.json(
-        {
-          message: 'Cross-tournament scheduling conflict detected',
-          conflicts,
-        },
-        { status: 409 }
-      )
-    }
 
     // ── Replace all existing preferences for this player+match with new ones ──
     await db.$transaction(async (tx) => {
