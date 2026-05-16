@@ -179,6 +179,12 @@ export function ClubPlayers() {
 
   useEffect(() => { load() }, [load])
 
+  // Poll every 15s to catch membership confirmations from players
+  useEffect(() => {
+    const interval = setInterval(() => { load() }, 15000)
+    return () => clearInterval(interval)
+  }, [load])
+
   const resetDialog = () => {
     setStep('lookup')
     setDniInput('')

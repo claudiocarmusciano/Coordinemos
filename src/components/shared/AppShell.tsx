@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { useAuthStore, useViewStore, apiFetch, type ViewName } from '@/store/auth'
+import { useAuthStore, useViewStore, useNotificationStore, apiFetch, type ViewName } from '@/store/auth'
 import {
   LogOut,
   Shield,
@@ -46,8 +46,8 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, token, logout } = useAuthStore()
   const { currentView, setView } = useViewStore()
+  const { unreadCount, setUnreadCount } = useNotificationStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
 
   // Poll unread notification count for players
   useEffect(() => {

@@ -66,6 +66,17 @@ export const useViewStore = create<ViewState>((set) => ({
   setView: (view, params = {}) => set({ currentView: view, viewParams: params }),
 }))
 
+// Shared notification counter
+interface NotificationState {
+  unreadCount: number
+  setUnreadCount: (count: number) => void
+}
+
+export const useNotificationStore = create<NotificationState>((set) => ({
+  unreadCount: 0,
+  setUnreadCount: (count) => set({ unreadCount: count }),
+}))
+
 // API helper
 export async function apiFetch(path: string, token: string | null, options?: RequestInit) {
   const headers: Record<string, string> = {

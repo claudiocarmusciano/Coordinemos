@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { useAuthStore, apiFetch } from '@/store/auth'
+import { useAuthStore, useNotificationStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -444,6 +444,7 @@ export function PlayerMemberships() {
 /* ─── PLAYER NOTIFICATIONS ────────────────────────────── */
 export function PlayerNotifications() {
   const { token } = useAuthStore()
+  const { setUnreadCount } = useNotificationStore()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -451,6 +452,8 @@ export function PlayerNotifications() {
     try {
       const data = await apiFetch('/api/player/notifications', token)
       setNotifications(data)
+      // Sync badge count immediately
+      setUnreadCount(data.filter((n: any) => !n.read).length)
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setLoading(false) }
   }, [token])
@@ -463,6 +466,8 @@ export function PlayerNotifications() {
         method: 'PUT',
         body: JSON.stringify({ markAllRead: true }),
       })
+      // Update badge immediately before re-fetching
+      setUnreadCount(0)
       toast.success('Todas las notificaciones marcadas como leídas')
       load()
     } catch (err: unknown) {
@@ -476,6 +481,8 @@ export function PlayerNotifications() {
         method: 'PUT',
         body: JSON.stringify({ notificationIds: [id] }),
       })
+      // Update badge immediately
+      setUnreadCount(Math.max(0, notifications.filter((n) => !n.read).length - 1))
       load()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error')
