@@ -70,6 +70,28 @@ async function checkAndConfirmMatch(matchId: string) {
 
       console.log(`[checkAndConfirmMatch] Looking for slot: clubId=${matchTournament.clubId} day=${day} startTime=${startTime} endTime=${endTime}`)
       if (availableSlot) {
+        // Check for double-booking: any of the 4 players already has a confirmed match at the same day+startTime
+        const playerIdArray = [...requiredPlayerIds]
+        const doubleBooking = await db.matchAssignment.findFirst({
+          where: {
+            cancelledAt: null,
+            match: {
+              id: { not: match.id },
+              OR: [
+                { couple1: { player1Id: { in: playerIdArray } } },
+                { couple1: { player2Id: { in: playerIdArray } } },
+                { couple2: { player1Id: { in: playerIdArray } } },
+                { couple2: { player2Id: { in: playerIdArray } } },
+              ],
+            },
+            slot: { day, startTime },
+          },
+        })
+        if (doubleBooking) {
+          console.log(`[checkAndConfirmMatch] Skipping ${slotTime} — a player already has a confirmed match at this day+time in another match`)
+          continue
+        }
+
         console.log(`[checkAndConfirmMatch] Found slot ${availableSlot.id}, confirming...`)
         // Confirm the match
         await db.$transaction([
