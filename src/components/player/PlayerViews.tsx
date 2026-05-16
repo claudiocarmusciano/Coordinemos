@@ -252,6 +252,9 @@ export function PlayerMatches() {
                     <CardTitle className="text-foreground text-base">
                       {m.tournament?.name}
                     </CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {m.club?.name}
+                    </p>
                     <p className="text-sm text-muted-foreground mt-1">
                       vs {opponentCouple?.player1?.firstName} {opponentCouple?.player1?.lastName} & {opponentCouple?.player2?.firstName} {opponentCouple?.player2?.lastName}
                     </p>
@@ -272,6 +275,11 @@ export function PlayerMatches() {
                     <p className="text-sm text-foreground mt-1">
                       🏸 {m.matchAssignment.slot.day} · {m.matchAssignment.slot.startTime}–{m.matchAssignment.slot.endTime} · {m.matchAssignment.slot.court?.name}
                     </p>
+                    {m.club?.name && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        📍 {m.club.name}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <>
