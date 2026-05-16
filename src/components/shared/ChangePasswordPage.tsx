@@ -11,7 +11,7 @@ import { Key, ShieldCheck, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export function ChangePasswordPage() {
-  const { user, token, setAuth, updateUser } = useAuthStore()
+  const { user, token, setAuth, updateUser, setView } = useAuthStore()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -31,6 +31,7 @@ export function ChangePasswordPage() {
       return
     }
     setLoading(true)
+    const wasForcedChange = user?.mustChangePassword
     try {
       const data = await apiFetch('/api/auth/change-password', token, {
         method: 'POST',
@@ -41,6 +42,13 @@ export function ChangePasswordPage() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
+      // Si era cambio obligatorio, navegar al dashboard del rol
+      if (wasForcedChange) {
+        const role = data.user?.role
+        if (role === 'ADMIN') setView('admin-dashboard')
+        else if (role === 'CLUB') setView('club-dashboard')
+        else if (role === 'PLAYER') setView('player-memberships')
+      }
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al cambiar contraseña')
     } finally {
