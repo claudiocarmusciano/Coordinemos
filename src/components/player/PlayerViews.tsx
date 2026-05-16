@@ -140,6 +140,7 @@ export function PlayerMatches() {
   const [loading, setLoading] = useState(true)
   const [selectedSlots, setSelectedSlots] = useState<Record<string, Set<string>>>({})
   const [saving, setSaving] = useState<string | null>(null)
+  const [savedMatches, setSavedMatches] = useState<Set<string>>(new Set())
   const [playerId, setPlayerId] = useState('')
 
   const load = useCallback(async () => {
@@ -165,6 +166,7 @@ export function PlayerMatches() {
   useEffect(() => { load() }, [load])
 
   const toggleSlot = (matchId: string, slotKey: string) => {
+    setSavedMatches(prev => { const s = new Set(prev); s.delete(matchId); return s })
     setSelectedSlots((prev) => {
       const newSet = new Set(prev[matchId] || [])
       if (newSet.has(slotKey)) {
@@ -192,6 +194,7 @@ export function PlayerMatches() {
         body: JSON.stringify({ matchId, slots }),
       })
       toast.success('Preferencias guardadas')
+      setSavedMatches(prev => new Set(prev).add(matchId))
       load()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error')
@@ -312,13 +315,20 @@ export function PlayerMatches() {
                           ))}
                       </div>
                     )}
-                    <Button
-                      onClick={() => savePreferences(m.id)}
-                      className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground"
-                      disabled={saving === m.id || currentSelected.size === 0}
-                    >
-                      {saving === m.id ? 'Guardando...' : `Confirmar ${currentSelected.size} turno${currentSelected.size !== 1 ? 's' : ''}`}
-                    </Button>
+                    {savedMatches.has(m.id) ? (
+                      <div className="w-full mt-4 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-500 text-sm font-medium">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Preferencias enviadas · podés modificarlas arriba
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => savePreferences(m.id)}
+                        className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground"
+                        disabled={saving === m.id || currentSelected.size === 0}
+                      >
+                        {saving === m.id ? 'Guardando...' : `Confirmar ${currentSelected.size} turno${currentSelected.size !== 1 ? 's' : ''}`}
+                      </Button>
+                    )}
                   </>
                 )}
               </CardContent>

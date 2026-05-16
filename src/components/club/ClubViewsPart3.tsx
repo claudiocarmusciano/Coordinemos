@@ -459,31 +459,90 @@ export function ClubSlots() {
   const { token } = useAuthStore()
   const [slots, setSlots] = useState<any[]>([])
   const [courts, setCourts] = useState<any[]>([])
+  const [tournaments, setTournaments] = useState<any[]>([])
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [selectedCourtId, setSelectedCourtId] = useState<string>(ALL_COURTS)
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
   const [processing, setProcessing] = useState<Set<string>>(new Set())
 
-  const days = getUpcomingDays(14)
-
   const loadData = useCallback(async () => {
     try {
-      const [slotData, courtData] = await Promise.all([
+      const [slotData, courtData, tournamentData] = await Promise.all([
         apiFetch('/api/club/slots', token),
         apiFetch('/api/club/courts', token),
+        apiFetch('/api/club/tournaments', token),
       ])
       setSlots(slotData)
       setCourts(courtData)
+      setTournaments(tournamentData)
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setLoading(false) }
   }, [token])
 
   useEffect(() => { loadData() }, [loadData])
 
+  const selectedTournament = tournaments.find(t => t.id === selectedTournamentId)
+  const days = selectedTournament
+    ? (() => {
+        const start = new Date(selectedTournament.startDate)
+        const end = new Date(selectedTournament.endDate)
+        const result: string[] = []
+        const cur = new Date(start)
+        while (cur <= end) {
+          result.push(cur.toISOString().split('T')[0])
+          cur.setDate(cur.getDate() + 1)
+        }
+        return result
+      })()
+    : getUpcomingDays(14)
+
+  useEffect(() => {
+    if (days.length > 0) setSelectedDay(days[0])
+  }, [selectedTournamentId])
+
   const isAllCourts = selectedCourtId === ALL_COURTS
 
   const findSlot = (courtId: string, day: string, start: string) =>
     slots.find((s) => s.courtId === courtId && s.day === day && s.startTime === start)
+
+  const handleToggleAll = async (time: { start: string; end: string }) => {
+    const hasConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
+    if (hasConfirmed) {
+      toast.error('Hay un turno confirmado en alguna cancha, no se puede modificar')
+      return
+    }
+
+    const allHaveIt = courts.every(c => findSlot(c.id, selectedDay, time.start)?.status === 'AVAILABLE')
+
+    courts.forEach(c => {
+      const key = `${c.id}-${selectedDay}-${time.start}`
+      setProcessing(prev => new Set(prev).add(key))
+    })
+
+    try {
+      await Promise.all(courts.map(async (court) => {
+        const existing = findSlot(court.id, selectedDay, time.start)
+        if (allHaveIt && existing) {
+          await apiFetch(`/api/club/slots/${existing.id}`, token, { method: 'DELETE' })
+        } else if (!existing) {
+          await apiFetch('/api/club/slots', token, {
+            method: 'POST',
+            body: JSON.stringify({ day: selectedDay, startTime: time.start, endTime: time.end, courtId: court.id }),
+          })
+        }
+      }))
+      await loadData()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+      await loadData()
+    } finally {
+      courts.forEach(c => {
+        const key = `${c.id}-${selectedDay}-${time.start}`
+        setProcessing(prev => { const s = new Set(prev); s.delete(key); return s })
+      })
+    }
+  }
 
   const handleToggle = async (time: { start: string; end: string }, courtIdForToggle?: string) => {
     const targetCourtId = courtIdForToggle ?? selectedCourtId
@@ -568,6 +627,21 @@ export function ClubSlots() {
         </Card>
       ) : (
         <>
+          {/* ── Tournament selector ── */}
+          <div>
+            <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Torneo</p>
+            <Select value={selectedTournamentId} onValueChange={setSelectedTournamentId}>
+              <SelectTrigger className="bg-input border-border text-foreground w-full sm:w-64">
+                <SelectValue placeholder="Todos los días (14 próximos)" />
+              </SelectTrigger>
+              <SelectContent>
+                {tournaments.map(t => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* ── Court selector ── */}
           <div>
             <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Cancha</p>
@@ -651,79 +725,51 @@ export function ClubSlots() {
 
           {/* ── Slot grid ── */}
           {isAllCourts ? (
-            /* All courts view: grouped by court */
-            <div className="space-y-6">
-              {courts.map((court) => {
-                const courtSlots = PRESET_TIMES.filter(t =>
-                  slots.some(s => s.courtId === court.id && s.day === selectedDay && s.startTime === t.start)
-                )
-                const allCourtSlots = slots.filter(s => s.courtId === court.id && s.day === selectedDay)
-                if (allCourtSlots.length === 0) return null
+            /* All courts view: full 11-slot interactive grid */
+            <div className="grid grid-cols-2 gap-2">
+              {PRESET_TIMES.map((time) => {
+                const isAnyConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
+                const availableCount = courts.filter(c => findSlot(c.id, selectedDay, time.start)?.status === 'AVAILABLE').length
+                const allAvailable = availableCount === courts.length
+                const isAnyProcessing = courts.some(c => processing.has(`${c.id}-${selectedDay}-${time.start}`))
+
                 return (
-                  <div key={court.id}>
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">{court.name}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {PRESET_TIMES.filter(t =>
-                        slots.some(s => s.courtId === court.id && s.day === selectedDay && s.startTime === t.start)
-                      ).map((time) => {
-                        const existing = findSlot(court.id, selectedDay, time.start)
-                        const key = `${court.id}-${selectedDay}-${time.start}`
-                        const isProcessing = processing.has(key)
-                        const isConfirmed = existing?.status === 'CONFIRMED'
-                        const isAvailable = existing?.status === 'AVAILABLE'
-                        return (
-                          <button
-                            key={time.start}
-                            onClick={() => handleToggle(time, court.id)}
-                            disabled={isProcessing || isConfirmed}
-                            className={`relative p-4 rounded-xl border text-left transition-all select-none ${
-                              isConfirmed
-                                ? 'bg-primary/10 border-primary/40 cursor-default'
-                                : isAvailable
-                                ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
-                                : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
-                            } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
-                          >
-                            <p className={`text-lg font-bold leading-none ${
-                              isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
-                            }`}>
-                              {time.start}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
-                            {isConfirmed && existing?.matchAssignment && (
-                              <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
-                                {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
-                                {' vs '}
-                                {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
-                              </p>
-                            )}
-                            {isAvailable && (
-                              <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
-                            )}
-                            {isConfirmed && (
-                              <button
-                                onClick={(e) => handleCancelSlot(existing.id, e)}
-                                className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
-                                title="Cancelar turno"
-                              >
-                                ✕
-                              </button>
-                            )}
-                            {isProcessing && (
-                              <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
-                                <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                              </div>
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  <button
+                    key={time.start}
+                    onClick={() => handleToggleAll(time)}
+                    disabled={isAnyConfirmed || isAnyProcessing}
+                    className={`relative p-4 rounded-xl border text-left transition-all select-none ${
+                      isAnyConfirmed
+                        ? 'bg-primary/10 border-primary/40 cursor-default'
+                        : allAvailable
+                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
+                        : availableCount > 0
+                        ? 'bg-green-500/5 border-green-500/20 hover:bg-green-500/10 active:scale-95'
+                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
+                    } ${isAnyProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                  >
+                    <p className={`text-lg font-bold leading-none ${
+                      isAnyConfirmed ? 'text-primary' : availableCount > 0 ? 'text-green-400' : 'text-muted-foreground'
+                    }`}>
+                      {time.start}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
+                    {availableCount > 0 && (
+                      <p className="text-[10px] text-green-500/70 mt-1 font-medium">
+                        {availableCount}/{courts.length} canchas
+                      </p>
+                    )}
+                    {(allAvailable || availableCount > 0) && !isAnyConfirmed && (
+                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                    )}
+                    {isAnyProcessing && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </button>
                 )
               })}
-              {courts.every(court => !slots.some(s => s.courtId === court.id && s.day === selectedDay)) && (
-                <p className="text-sm text-muted-foreground text-center py-4">No hay turnos cargados para este día en ninguna cancha.</p>
-              )}
             </div>
           ) : (
             /* Single court view */
