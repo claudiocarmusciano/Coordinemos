@@ -7,7 +7,7 @@ import { LoginPage } from '@/components/shared/LoginPage'
 import { ChangePasswordPage } from '@/components/shared/ChangePasswordPage'
 import { AdminDashboard, AdminClubs } from '@/components/admin/AdminViews'
 import { ClubDashboard, ClubCourts } from '@/components/club/ClubViewsPart1'
-import { ClubTournaments, ClubPlayers } from '@/components/club/ClubViewsPart2'
+import { ClubTournaments, ClubPlayers, ClubNotifications } from '@/components/club/ClubViewsPart2'
 import { ClubCouples, ClubMatches, ClubSlots } from '@/components/club/ClubViewsPart3'
 import { PlayerTournaments, PlayerMatches, PlayerNotifications, PlayerMemberships } from '@/components/player/PlayerViews'
 
@@ -32,6 +32,7 @@ function ViewRouter() {
     case 'club-couples': return <ClubCouples />
     case 'club-matches': return <ClubMatches />
     case 'club-slots': return <ClubSlots />
+    case 'club-notifications': return <ClubNotifications />
     case 'player-memberships': return <PlayerMemberships />
     case 'player-tournaments': return <PlayerTournaments />
     case 'player-matches': return <PlayerMatches />

@@ -17,6 +17,27 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showForgot, setShowForgot] = useState(false)
+  const [forgotDni, setForgotDni] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotDone, setForgotDone] = useState(false)
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!forgotDni.trim()) return
+    setForgotLoading(true)
+    try {
+      await apiFetch('/api/auth/forgot-password', null, {
+        method: 'POST',
+        body: JSON.stringify({ dni: forgotDni.trim() }),
+      })
+      setForgotDone(true)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al procesar la solicitud')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -112,6 +133,64 @@ export function LoginPage() {
                 ) : 'Ingresar'}
               </Button>
             </form>
+
+            {/* Forgot password */}
+            <div className="mt-4 pt-4 border-t border-border">
+              {!showForgot ? (
+                <button
+                  type="button"
+                  onClick={() => { setShowForgot(true); setForgotDone(false); setForgotDni('') }}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors w-full text-center"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
+              ) : forgotDone ? (
+                <div className="text-center space-y-2">
+                  <p className="text-xs text-green-500 font-medium">¡Listo! Podés ingresar usando tu DNI como contraseña.</p>
+                  <p className="text-xs text-muted-foreground">Tu club fue notificado. Al ingresar, el sistema te pedirá que elijas una nueva contraseña.</p>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgot(false); setForgotDone(false) }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Volver al inicio de sesión
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-3">
+                  <p className="text-xs text-muted-foreground text-center">Ingresá tu DNI para restablecer tu contraseña</p>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={forgotDni}
+                    onChange={(e) => setForgotDni(e.target.value)}
+                    placeholder="Tu DNI (solo números)"
+                    className="bg-input border-border text-foreground h-10 text-sm"
+                    required
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-border"
+                      onClick={() => setShowForgot(false)}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      size="sm"
+                      className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                      disabled={forgotLoading}
+                    >
+                      {forgotLoading ? 'Enviando...' : 'Restablecer'}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
 
           </CardContent>
         </Card>

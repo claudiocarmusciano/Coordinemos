@@ -34,6 +34,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
     { label: 'Parejas', icon: <User className="w-4 h-4" />, view: 'club-couples' },
     { label: 'Partidos', icon: <Calendar className="w-4 h-4" />, view: 'club-matches' },
     { label: 'Turnos', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
+    { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'club-notifications', showBadge: true },
   ],
   PLAYER: [
     { label: 'Mis Clubes', icon: <Building2 className="w-4 h-4" />, view: 'player-memberships' },
@@ -49,15 +50,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { unreadCount, setUnreadCount } = useNotificationStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Poll unread notification count for players
+  // Poll unread notification count for players and clubs
   useEffect(() => {
-    if (user?.role !== 'PLAYER') return
+    if (user?.role !== 'PLAYER' && user?.role !== 'CLUB') return
+
+    const endpoint = user.role === 'PLAYER'
+      ? '/api/player/notifications?count=true'
+      : '/api/club/notifications?count=true'
 
     let mounted = true
     const poll = async () => {
       if (!token || !mounted) return
       try {
-        const data = await apiFetch('/api/player/notifications?count=true', token)
+        const data = await apiFetch(endpoint, token)
         if (mounted) setUnreadCount(data.count || 0)
       } catch {
         // Silently fail
@@ -74,8 +79,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Re-poll immediately when navigating away from notifications (to reflect read status)
   useEffect(() => {
-    if (user?.role !== 'PLAYER' || !token) return
-    apiFetch('/api/player/notifications?count=true', token)
+    if (!token || (user?.role !== 'PLAYER' && user?.role !== 'CLUB')) return
+    const endpoint = user?.role === 'PLAYER'
+      ? '/api/player/notifications?count=true'
+      : '/api/club/notifications?count=true'
+    apiFetch(endpoint, token)
       .then((data) => setUnreadCount(data.count || 0))
       .catch(() => {})
   }, [currentView])
@@ -143,11 +151,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Badge>
               <span className="text-muted-foreground hidden sm:inline">{user.username}</span>
             </div>
-            {user.role === 'PLAYER' && (
+            {(user.role === 'PLAYER' || user.role === 'CLUB') && (
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setView('player-notifications')}
+                onClick={() => setView(user.role === 'PLAYER' ? 'player-notifications' : 'club-notifications')}
                 title="Notificaciones"
                 className="relative"
               >

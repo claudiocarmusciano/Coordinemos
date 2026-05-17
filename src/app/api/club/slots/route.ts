@@ -25,6 +25,15 @@ export async function GET(request: Request) {
 
     const today = new Date().toISOString().split('T')[0]
 
+    // Clean up past AVAILABLE slots (they are no longer useful)
+    await db.slot.deleteMany({
+      where: {
+        clubId: club.id,
+        status: 'AVAILABLE',
+        day: { lt: today },
+      },
+    })
+
     const where: Record<string, unknown> = {
       clubId: club.id,
       status: { in: ['AVAILABLE', 'CONFIRMED'] },

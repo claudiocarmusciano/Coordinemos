@@ -52,6 +52,7 @@ export type ViewName =
   | 'player-matches'
   | 'player-notifications'
   | 'player-memberships'
+  | 'club-notifications'
   | 'change-password'
 
 interface ViewState {
