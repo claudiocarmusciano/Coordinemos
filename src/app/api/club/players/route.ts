@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest, hashPassword } from '@/lib/auth'
+import { generateTempPassword, sendEmail, buildWelcomeEmail } from '@/lib/email'
 
 // GET /api/club/players — Return all CONFIRMED players for the club
 export async function GET(request: Request) {
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { dni, firstName, lastName, phone, password } = body
+    const { dni, firstName, lastName, phone, email } = body
 
     // Validate DNI
     if (!dni || typeof dni !== 'string' || !dni.trim()) {
@@ -184,11 +185,17 @@ export async function POST(request: Request) {
     if (!lastName || typeof lastName !== 'string' || !lastName.trim()) {
       return NextResponse.json({ message: 'El apellido es requerido' }, { status: 400 })
     }
-    if (!password || typeof password !== 'string' || !password.trim()) {
-      return NextResponse.json({ message: 'La contraseña es requerida' }, { status: 400 })
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return NextResponse.json({ message: 'El correo electrónico es requerido' }, { status: 400 })
+    }
+    const emailValue = email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      return NextResponse.json({ message: 'El correo electrónico no es válido' }, { status: 400 })
     }
 
-    const hashedPasswordValue = await hashPassword(password)
+    // Generate a random temporary password
+    const tempPassword = generateTempPassword()
+    const hashedPasswordValue = await hashPassword(tempPassword)
 
     const player = await db.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -197,6 +204,7 @@ export async function POST(request: Request) {
           password: hashedPasswordValue,
           role: 'PLAYER',
           mustChangePassword: true,
+          email: emailValue,
         },
       })
 
@@ -222,6 +230,12 @@ export async function POST(request: Request) {
         user: { id: newUser.id, username: newUser.username },
       }
     })
+
+    // Send welcome email with temp password (non-blocking — don't fail if email errors)
+    const emailTemplate = buildWelcomeEmail(firstName.trim(), tempPassword)
+    sendEmail({ to: emailValue, ...emailTemplate }).catch((err) =>
+      console.error('[email] Failed to send welcome email:', err)
+    )
 
     return NextResponse.json({ status: 'CREATED', player }, { status: 201 })
   } catch (error) {

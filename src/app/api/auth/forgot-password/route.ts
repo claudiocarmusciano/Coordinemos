@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
+import { generateTempPassword, sendEmail, buildPasswordResetEmail } from '@/lib/email'
 
 // POST /api/auth/forgot-password
 // Body: { dni: string }
-// Resets the player's password to their DNI, sets mustChangePassword=true,
-// and notifies all clubs where the player has CONFIRMED membership.
+// Generates a temp password and sends it to the player's registered email.
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -19,42 +19,41 @@ export async function POST(request: Request) {
     }
 
     const dniValue = dni.trim()
-    const genericOk = { message: 'Si el DNI está registrado, los clubes serán notificados y podrás ingresar con tu DNI como contraseña.' }
 
     const user = await db.user.findUnique({ where: { username: dniValue } })
+
+    // Always return the same message to avoid revealing whether the DNI exists
+    const genericOk = {
+      message: 'Si el DNI está registrado y tiene un email asociado, recibirás una contraseña temporal en tu correo.',
+    }
+
     if (!user || user.role !== 'PLAYER') {
-      // Don't reveal whether the DNI exists
       return NextResponse.json(genericOk)
     }
 
-    // Reset password to DNI and force change on next login
-    const hashed = await hashPassword(dniValue)
+    if (!user.email) {
+      // Player exists but has no email — tell them to contact their club
+      return NextResponse.json({
+        message: 'Tu cuenta no tiene un correo registrado. Contactá a tu club para recuperar el acceso.',
+        noEmail: true,
+      })
+    }
+
+    // Generate temp password, update DB, send email
+    const tempPassword = generateTempPassword()
+    const hashed = await hashPassword(tempPassword)
+
     await db.user.update({
       where: { id: user.id },
       data: { password: hashed, mustChangePassword: true },
     })
 
-    // Notify all clubs with CONFIRMED membership
-    const player = await db.player.findUnique({
-      where: { userId: user.id },
-      include: {
-        memberships: {
-          where: { status: 'CONFIRMED' },
-          include: { club: { select: { userId: true, name: true } } },
-        },
-      },
-    })
+    // Get player name for the email
+    const player = await db.player.findUnique({ where: { userId: user.id } })
+    const firstName = player?.firstName ?? 'Jugador'
 
-    if (player && player.memberships.length > 0) {
-      const notifications = player.memberships.map((m) => ({
-        userId: m.club.userId,
-        message: `El jugador ${player.firstName} ${player.lastName} (DNI: ${dniValue}) solicitó restablecer su contraseña. La contraseña fue reseteada a su DNI y deberá cambiarla al ingresar.`,
-        type: 'PASSWORD_RESET',
-        relatedId: player.id,
-        read: false,
-      }))
-      await db.notification.createMany({ data: notifications })
-    }
+    const emailTemplate = buildPasswordResetEmail(firstName, tempPassword)
+    await sendEmail({ to: user.email, ...emailTemplate })
 
     return NextResponse.json(genericOk)
   } catch (error) {

@@ -22,18 +22,23 @@ export function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false)
   const [forgotDone, setForgotDone] = useState(false)
 
+  const [forgotMessage, setForgotMessage] = useState('')
+
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!forgotDni.trim()) return
     setForgotLoading(true)
     try {
-      await apiFetch('/api/auth/forgot-password', null, {
+      const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dni: forgotDni.trim() }),
       })
+      const data = await res.json()
+      setForgotMessage(data.message || '')
       setForgotDone(true)
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al procesar la solicitud')
+    } catch {
+      toast.error('Error al procesar la solicitud')
     } finally {
       setForgotLoading(false)
     }
@@ -146,11 +151,10 @@ export function LoginPage() {
                 </button>
               ) : forgotDone ? (
                 <div className="text-center space-y-2">
-                  <p className="text-xs text-green-500 font-medium">¡Listo! Podés ingresar usando tu DNI como contraseña.</p>
-                  <p className="text-xs text-muted-foreground">Tu club fue notificado. Al ingresar, el sistema te pedirá que elijas una nueva contraseña.</p>
+                  <p className="text-xs text-foreground font-medium">{forgotMessage}</p>
                   <button
                     type="button"
-                    onClick={() => { setShowForgot(false); setForgotDone(false) }}
+                    onClick={() => { setShowForgot(false); setForgotDone(false); setForgotMessage('') }}
                     className="text-xs text-primary hover:underline"
                   >
                     Volver al inicio de sesión
