@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useAuthStore, apiFetch } from '@/store/auth'
+import { useAuthStore, useViewStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,8 @@ import { Key, ShieldCheck, AlertTriangle, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 export function ChangePasswordPage() {
-  const { user, token, setAuth, updateUser, setView } = useAuthStore()
+  const { user, token, setAuth, updateUser } = useAuthStore()
+  const { setView } = useViewStore()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')

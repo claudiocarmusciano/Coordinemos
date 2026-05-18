@@ -17,6 +17,7 @@ import {
   RectangleHorizontal,
   Menu,
   X,
+  Settings,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -34,6 +35,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
     { label: 'Parejas', icon: <User className="w-4 h-4" />, view: 'club-couples' },
     { label: 'Partidos', icon: <Calendar className="w-4 h-4" />, view: 'club-matches' },
     { label: 'Turnos', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
+    { label: 'Horario', icon: <Settings className="w-4 h-4" />, view: 'club-schedule' },
     { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'club-notifications', showBadge: true },
   ],
   PLAYER: [

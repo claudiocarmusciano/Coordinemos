@@ -32,10 +32,22 @@ model Club {
   userId    String @unique
   user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  courts      Court[]
-  tournaments Tournament[]
-  memberships ClubMembership[]
-  slots       Slot[]
+  courts        Court[]
+  tournaments   Tournament[]
+  memberships   ClubMembership[]
+  slots         Slot[]
+  scheduleBands ScheduleBand[]
+}
+
+model ScheduleBand {
+  id           String @id @default(cuid())
+  clubId       String
+  dayOfWeek    Int    // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime    String // HH:mm — first slot starts here
+  endTime      String // HH:mm — last slot STARTS at or before this
+  slotDuration Int    // duration in minutes (e.g. 90)
+  club         Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  @@unique([clubId, dayOfWeek, startTime])
 }
 
 // ─── COURTS ─────────────────────────────────────────────────

@@ -48,6 +48,7 @@ export type ViewName =
   | 'club-couples'
   | 'club-matches'
   | 'club-slots'
+  | 'club-schedule'
   | 'player-tournaments'
   | 'player-matches'
   | 'player-notifications'

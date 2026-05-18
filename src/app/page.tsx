@@ -9,6 +9,7 @@ import { AdminDashboard, AdminClubs } from '@/components/admin/AdminViews'
 import { ClubDashboard, ClubCourts } from '@/components/club/ClubViewsPart1'
 import { ClubTournaments, ClubPlayers, ClubNotifications } from '@/components/club/ClubViewsPart2'
 import { ClubCouples, ClubMatches, ClubSlots } from '@/components/club/ClubViewsPart3'
+import { ClubSchedule } from '@/components/club/ClubSchedule'
 import { PlayerTournaments, PlayerMatches, PlayerNotifications, PlayerMemberships } from '@/components/player/PlayerViews'
 
 async function initAdmin() {
@@ -32,6 +33,7 @@ function ViewRouter() {
     case 'club-couples': return <ClubCouples />
     case 'club-matches': return <ClubMatches />
     case 'club-slots': return <ClubSlots />
+    case 'club-schedule': return <ClubSchedule />
     case 'club-notifications': return <ClubNotifications />
     case 'player-memberships': return <PlayerMemberships />
     case 'player-tournaments': return <PlayerTournaments />

@@ -28,6 +28,7 @@ import {
   CheckCircle2,
   AlertCircle,
   XCircle,
+  CalendarDays,
 } from 'lucide-react'
 
 import { Label } from '@/components/ui/label'
@@ -466,6 +467,13 @@ export function ClubSlots() {
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
   const [processing, setProcessing] = useState<Set<string>>(new Set())
 
+  // Bulk generate dialog state
+  const [generateOpen, setGenerateOpen] = useState(false)
+  const [generateDate, setGenerateDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [preview, setPreview] = useState<any>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
+
   const loadData = useCallback(async () => {
     try {
       const [slotData, courtData, tournamentData] = await Promise.all([
@@ -481,6 +489,43 @@ export function ClubSlots() {
   }, [token])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Fetch preview whenever generateDate changes and dialog is open
+  const fetchPreview = useCallback(async (date: string) => {
+    if (!date) return
+    setPreviewLoading(true)
+    setPreview(null)
+    try {
+      const data = await apiFetch(`/api/club/schedule/preview?date=${date}`, token)
+      setPreview(data)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al cargar vista previa')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (generateOpen) fetchPreview(generateDate)
+  }, [generateDate, generateOpen])
+
+  const handleBulkGenerate = async () => {
+    setGenerating(true)
+    try {
+      const data = await apiFetch('/api/club/slots/bulk', token, {
+        method: 'POST',
+        body: JSON.stringify({ date: generateDate }),
+      })
+      toast.success(`${data.created} turno${data.created !== 1 ? 's' : ''} creado${data.created !== 1 ? 's' : ''} · ${data.skipped} omitido${data.skipped !== 1 ? 's' : ''}`)
+      setGenerateOpen(false)
+      setPreview(null)
+      loadData()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar turnos')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   const selectedTournament = tournaments.find(t => t.id === selectedTournamentId)
   const days = selectedTournament
@@ -611,9 +656,105 @@ export function ClubSlots() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
-        <p className="text-sm text-muted-foreground">Tocá un horario para habilitarlo o quitarlo</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
+          <p className="text-sm text-muted-foreground">Tocá un horario para habilitarlo o quitarlo</p>
+        </div>
+        <Dialog open={generateOpen} onOpenChange={(open) => { setGenerateOpen(open); if (!open) setPreview(null) }}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0">
+              <CalendarDays className="w-4 h-4 mr-1.5" />
+              Generar turnos
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Generar turnos en lote</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <label className="text-sm text-muted-foreground">Fecha</label>
+                <input
+                  type="date"
+                  value={generateDate}
+                  onChange={(e) => setGenerateDate(e.target.value)}
+                  className="w-full sm:w-48 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground"
+                />
+              </div>
+
+              {previewLoading && (
+                <p className="text-sm text-muted-foreground">Cargando vista previa...</p>
+              )}
+
+              {!previewLoading && preview && preview.bands.length === 0 && (
+                <div className="bg-muted/40 border border-border rounded-lg p-4 text-center">
+                  <p className="text-sm text-muted-foreground">No hay horario configurado para ese día</p>
+                  <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección Horario</p>
+                </div>
+              )}
+
+              {!previewLoading && preview && preview.courts.length > 0 && (() => {
+                const allSlots = preview.courts[0]?.slots ?? []
+                const totalNew = preview.courts.reduce((acc: number, c: any) => acc + c.slots.filter((s: any) => !s.exists).length, 0)
+                const totalExisting = preview.courts.reduce((acc: number, c: any) => acc + c.slots.filter((s: any) => s.exists).length, 0)
+                return (
+                  <div className="space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="text-foreground font-medium">{totalNew}</span> turno{totalNew !== 1 ? 's' : ''} nuevos
+                      {' · '}
+                      <span className="text-muted-foreground">{totalExisting} ya existen</span>
+                    </p>
+                    {/* Grid: rows = times, cols = courts */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="text-left py-2 pr-3 text-muted-foreground font-semibold uppercase tracking-wide">Horario</th>
+                            {preview.courts.map((c: any) => (
+                              <th key={c.id} className="py-2 px-2 text-center text-muted-foreground font-semibold">{c.name}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allSlots.map((_: any, i: number) => {
+                            const time = preview.courts[0].slots[i]
+                            return (
+                              <tr key={i} className="border-t border-border/40">
+                                <td className="py-2 pr-3 font-medium text-foreground whitespace-nowrap">
+                                  {time.startTime} → {time.endTime}
+                                </td>
+                                {preview.courts.map((c: any) => {
+                                  const s = c.slots[i]
+                                  return (
+                                    <td key={c.id} className="py-2 px-2 text-center">
+                                      {s.exists ? (
+                                        <span className="text-green-500 font-bold" title={s.existingStatus ?? ''}>✓</span>
+                                      ) : (
+                                        <span className="text-primary font-bold">+</span>
+                                      )}
+                                    </td>
+                                  )
+                                })}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Button
+                      onClick={handleBulkGenerate}
+                      disabled={generating || totalNew === 0}
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      {generating ? 'Generando...' : `Confirmar — crear ${totalNew} turno${totalNew !== 1 ? 's' : ''}`}
+                    </Button>
+                  </div>
+                )
+              })()}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {loading ? (
