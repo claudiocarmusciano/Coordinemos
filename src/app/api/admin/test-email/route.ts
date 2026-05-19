@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import fs from 'fs'
 
 // GET /api/admin/test-email?to=tucorreo@gmail.com
 // Endpoint de diagnóstico — prueba el envío via Brevo API
@@ -6,23 +7,44 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const to = searchParams.get('to')
 
-  // Dot notation (puede quedar inlineada como undefined por webpack)
-  const apiKeyDot = process.env.MAIL_TOKEN
-  // Bracket notation (evita el inlining de webpack)
-  const apiKey = (process.env as Record<string, string | undefined>)['MAIL_TOKEN']
+  // 1. Env var (bracket notation evita el inlining de webpack)
+  const apiKeyEnv = (process.env as Record<string, string | undefined>)['MAIL_TOKEN']
 
-  // Lista de nombres de variables disponibles (sin valores sensibles)
-  const availableKeys = Object.keys(process.env).sort()
+  // 2. File-based fallback
+  let apiKeyFile: string | undefined
+  let fileStatus = 'not checked'
+  try {
+    const volumePath =
+      (process.env as Record<string, string | undefined>)['RAILWAY_VOLUME_MOUNT_PATH'] || '/data'
+    const keyFile = `${volumePath}/mail_token`
+    fileStatus = `checking ${keyFile}`
+    if (fs.existsSync(keyFile)) {
+      const key = fs.readFileSync(keyFile, 'utf-8').trim()
+      if (key) {
+        apiKeyFile = key
+        fileStatus = `OK (${key.length} chars) at ${keyFile}`
+      } else {
+        fileStatus = `file exists but is empty at ${keyFile}`
+      }
+    } else {
+      fileStatus = `file not found at ${keyFile}`
+    }
+  } catch (e: any) {
+    fileStatus = `error: ${e.message}`
+  }
+
+  const apiKey = apiKeyEnv || apiKeyFile
 
   const info: Record<string, any> = {
-    MAIL_TOKEN_dot: apiKeyDot ? `OK (${apiKeyDot.length} chars)` : 'UNDEFINED - webpack inlined',
-    MAIL_TOKEN_bracket: apiKey ? `OK (${apiKey.length} chars)` : 'UNDEFINED',
+    MAIL_TOKEN_env: apiKeyEnv ? `OK (${apiKeyEnv.length} chars)` : 'UNDEFINED',
+    MAIL_TOKEN_file: fileStatus,
+    MAIL_TOKEN_resolved: apiKey ? `OK (${apiKey.length} chars)` : 'UNDEFINED — no source found',
     to: to || '(no especificado)',
-    available_env_keys: availableKeys,
+    available_env_keys: Object.keys(process.env).sort(),
   }
 
   if (!apiKey) {
-    return NextResponse.json({ ok: false, info, error: 'MAIL_TOKEN no disponible en runtime' })
+    return NextResponse.json({ ok: false, info, error: 'MAIL_TOKEN no disponible por ninguna vía' })
   }
 
   if (!to) {

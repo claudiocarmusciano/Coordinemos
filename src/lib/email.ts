@@ -1,3 +1,5 @@
+import fs from 'fs'
+
 // Generates a random temporary password (8 chars, easy to type)
 export function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
@@ -7,6 +9,32 @@ export function generateTempPassword(): string {
 const BREVO_SENDER_EMAIL = 'coordinemosaplicacion@gmail.com'
 const BREVO_SENDER_NAME = 'Coordinemos'
 
+/**
+ * Resolves the Brevo API key from multiple sources:
+ * 1. MAIL_TOKEN env var (bracket notation to bypass webpack inlining)
+ * 2. File on Railway volume: /data/mail_token (fallback when env injection fails)
+ */
+function getMailToken(): string | undefined {
+  // 1. Env var — bracket notation bypasses Next.js/webpack build-time inlining
+  const fromEnv = (process.env as Record<string, string | undefined>)['MAIL_TOKEN']
+  if (fromEnv) return fromEnv
+
+  // 2. File-based fallback: persists on Railway volume across redeployments
+  try {
+    const volumePath =
+      (process.env as Record<string, string | undefined>)['RAILWAY_VOLUME_MOUNT_PATH'] || '/data'
+    const keyFile = `${volumePath}/mail_token`
+    if (fs.existsSync(keyFile)) {
+      const key = fs.readFileSync(keyFile, 'utf-8').trim()
+      if (key) return key
+    }
+  } catch {
+    // Ignore file read errors (e.g. running locally without /data)
+  }
+
+  return undefined
+}
+
 interface SendEmailOptions {
   to: string
   subject: string
@@ -14,8 +42,7 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
-  // Bracket notation to bypass Next.js/webpack build-time inlining
-  const apiKey = (process.env as Record<string, string | undefined>)['MAIL_TOKEN']
+  const apiKey = getMailToken()
   if (!apiKey) {
     console.warn('[email] MAIL_TOKEN not set — email not sent')
     return
