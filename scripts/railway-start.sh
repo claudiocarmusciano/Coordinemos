@@ -1,7 +1,8 @@
 #!/bin/sh
 set -e
 
-echo "→ Inicializando base de datos..."
+echo "→ Reseteando base de datos..."
+rm -f /data/db.sqlite
 npx prisma db push --accept-data-loss
 
 echo "→ Iniciando servidor..."
