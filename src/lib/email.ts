@@ -9,15 +9,15 @@ export function generateTempPassword(): string {
 function createTransporter() {
   return nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // STARTTLS
+    port: 465,
+    secure: true, // SSL directo (evita bloqueos de puerto 587/STARTTLS)
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS, // Gmail app password
     },
-    connectionTimeout: 8000,  // 8s para conectar
-    greetingTimeout: 8000,
-    socketTimeout: 10000,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   })
 }
 
