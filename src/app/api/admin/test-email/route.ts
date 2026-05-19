@@ -1,73 +1,49 @@
 import { NextResponse } from 'next/server'
-import nodemailer from 'nodemailer'
 
 // GET /api/admin/test-email?to=tucorreo@gmail.com
-// Endpoint de diagnóstico — muestra exactamente qué pasa con el SMTP
+// Endpoint de diagnóstico — prueba el envío via Brevo API
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const to = searchParams.get('to')
 
-  const gmailUser = process.env.GMAIL_USER
-  const gmailPass = process.env.GMAIL_PASS
+  const apiKey = process.env.BREVO_API_KEY
 
   const info: Record<string, any> = {
-    GMAIL_USER: gmailUser ? `${gmailUser.slice(0, 3)}***@${gmailUser.split('@')[1]}` : '❌ NO CONFIGURADA',
-    GMAIL_PASS: gmailPass ? `✅ configurada (${gmailPass.length} caracteres)` : '❌ NO CONFIGURADA',
+    BREVO_API_KEY: apiKey ? `✅ configurada (${apiKey.length} caracteres)` : '❌ NO CONFIGURADA',
     to: to || '(no especificado — agregá ?to=tucorreo@gmail.com)',
   }
 
-  if (!gmailUser || !gmailPass) {
-    return NextResponse.json({ ok: false, info, error: 'Variables de entorno faltantes' })
+  if (!apiKey) {
+    return NextResponse.json({ ok: false, info, error: 'BREVO_API_KEY no configurada' })
   }
 
   if (!to) {
     return NextResponse.json({ ok: false, info, error: 'Falta el parámetro ?to=correo' })
   }
 
-  // Probar puerto 465
   try {
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 465,
-      secure: true,
-      auth: { user: gmailUser, pass: gmailPass },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: { name: 'Coordinemos Test', email: 'coordinemosaplicacion@gmail.com' },
+        to: [{ email: to }],
+        subject: 'Test de email — Coordinemos',
+        htmlContent: '<p>Si recibís este mail, el sistema de email está funcionando correctamente ✅</p>',
+      }),
     })
 
-    await transporter.verify()
-    info.verify_465 = '✅ Conexión exitosa'
+    const body = await response.text()
 
-    await transporter.sendMail({
-      from: `"Coordinemos Test" <${gmailUser}>`,
-      to,
-      subject: 'Test de email — Coordinemos',
-      html: '<p>Si recibís este mail, el SMTP está funcionando correctamente.</p>',
-    })
-
-    return NextResponse.json({ ok: true, info, message: 'Email enviado correctamente' })
-  } catch (err: any) {
-    info.error_465 = err.message
-    info.code = err.code
-
-    // Probar también puerto 587 como fallback
-    try {
-      const transporter587 = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false,
-        auth: { user: gmailUser, pass: gmailPass },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      })
-      await transporter587.verify()
-      info.verify_587 = '✅ Puerto 587 funciona'
-    } catch (err587: any) {
-      info.error_587 = err587.message
+    if (!response.ok) {
+      return NextResponse.json({ ok: false, info, error: `Brevo error ${response.status}`, detail: body })
     }
 
+    return NextResponse.json({ ok: true, info, message: 'Email enviado correctamente — revisá tu bandeja' })
+  } catch (err: any) {
     return NextResponse.json({ ok: false, info, error: err.message })
   }
 }

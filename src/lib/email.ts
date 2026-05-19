@@ -1,25 +1,11 @@
-import nodemailer from 'nodemailer'
-
 // Generates a random temporary password (8 chars, easy to type)
 export function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
   return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
-function createTransporter() {
-  return nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // SSL directo (evita bloqueos de puerto 587/STARTTLS)
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS, // Gmail app password
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  })
-}
+const BREVO_SENDER_EMAIL = 'coordinemosaplicacion@gmail.com'
+const BREVO_SENDER_NAME = 'Coordinemos'
 
 interface SendEmailOptions {
   to: string
@@ -28,17 +14,30 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_PASS) {
-    console.warn('[email] GMAIL_USER or GMAIL_PASS not set — email not sent')
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) {
+    console.warn('[email] BREVO_API_KEY not set — email not sent')
     return
   }
-  const transporter = createTransporter()
-  await transporter.sendMail({
-    from: `"Coordinemos" <${process.env.GMAIL_USER}>`,
-    to,
-    subject,
-    html,
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      sender: { name: BREVO_SENDER_NAME, email: BREVO_SENDER_EMAIL },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
   })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Brevo API error ${response.status}: ${error}`)
+  }
 }
 
 // ─── Email templates ────────────────────────────────────────
@@ -49,7 +48,7 @@ export function buildWelcomeEmail(firstName: string, tempPassword: string) {
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
-          <div style="width: 56px; height: 56px; background: #3b82f6; border-radius: 12px;
+          <div style="width: 56px; height: 56px; background: #ff7835; border-radius: 12px;
                       display: flex; align-items: center; justify-content: center;
                       font-size: 28px; font-weight: bold; margin-bottom: 24px;">C</div>
           <h2 style="margin: 0 0 8px; font-size: 20px;">¡Hola, ${firstName}!</h2>
@@ -61,7 +60,7 @@ export function buildWelcomeEmail(firstName: string, tempPassword: string) {
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Tu usuario (DNI)</p>
             <p style="margin: 0 0 16px; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff;">(tu DNI)</p>
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Contraseña temporal</p>
-            <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #3b82f6;">${tempPassword}</p>
+            <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #ff7835;">${tempPassword}</p>
           </div>
           <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
             Al ingresar por primera vez, el sistema te pedirá que elijas una nueva contraseña.
@@ -78,7 +77,7 @@ export function buildPasswordResetEmail(firstName: string, tempPassword: string)
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
-          <div style="width: 56px; height: 56px; background: #3b82f6; border-radius: 12px;
+          <div style="width: 56px; height: 56px; background: #ff7835; border-radius: 12px;
                       display: flex; align-items: center; justify-content: center;
                       font-size: 28px; font-weight: bold; margin-bottom: 24px;">C</div>
           <h2 style="margin: 0 0 8px; font-size: 20px;">Restablecimiento de contraseña</h2>
@@ -88,7 +87,7 @@ export function buildPasswordResetEmail(firstName: string, tempPassword: string)
           </p>
           <div style="background: #27272a; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Contraseña temporal</p>
-            <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #3b82f6;">${tempPassword}</p>
+            <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #ff7835;">${tempPassword}</p>
           </div>
           <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
             Ingresá con tu DNI y esta contraseña. Al iniciar sesión el sistema te pedirá que elijas una nueva.
