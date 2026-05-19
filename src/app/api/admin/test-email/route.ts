@@ -7,22 +7,22 @@ export async function GET(request: Request) {
   const to = searchParams.get('to')
 
   // Dot notation (puede quedar inlineada como undefined por webpack)
-  const apiKeyDot = process.env.BREVO_API_KEY
+  const apiKeyDot = process.env.MAIL_TOKEN
   // Bracket notation (evita el inlining de webpack)
-  const apiKey = (process.env as Record<string, string | undefined>)['BREVO_API_KEY']
+  const apiKey = (process.env as Record<string, string | undefined>)['MAIL_TOKEN']
 
   // Lista de nombres de variables disponibles (sin valores sensibles)
   const availableKeys = Object.keys(process.env).sort()
 
   const info: Record<string, any> = {
-    BREVO_API_KEY_dot: apiKeyDot ? `OK (${apiKeyDot.length} chars)` : 'UNDEFINED - webpack inlined',
-    BREVO_API_KEY_bracket: apiKey ? `OK (${apiKey.length} chars)` : 'UNDEFINED',
+    MAIL_TOKEN_dot: apiKeyDot ? `OK (${apiKeyDot.length} chars)` : 'UNDEFINED - webpack inlined',
+    MAIL_TOKEN_bracket: apiKey ? `OK (${apiKey.length} chars)` : 'UNDEFINED',
     to: to || '(no especificado)',
     available_env_keys: availableKeys,
   }
 
   if (!apiKey) {
-    return NextResponse.json({ ok: false, info, error: 'BREVO_API_KEY no disponible en runtime' })
+    return NextResponse.json({ ok: false, info, error: 'MAIL_TOKEN no disponible en runtime' })
   }
 
   if (!to) {
