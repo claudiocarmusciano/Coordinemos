@@ -8,9 +8,13 @@ export async function GET(request: Request) {
 
   const apiKey = process.env.BREVO_API_KEY
 
+  // Lista de nombres de variables disponibles (sin valores sensibles)
+  const availableKeys = Object.keys(process.env).sort()
+
   const info: Record<string, any> = {
     BREVO_API_KEY: apiKey ? `✅ configurada (${apiKey.length} caracteres)` : '❌ NO CONFIGURADA',
     to: to || '(no especificado — agregá ?to=tucorreo@gmail.com)',
+    available_env_keys: availableKeys,
   }
 
   if (!apiKey) {
