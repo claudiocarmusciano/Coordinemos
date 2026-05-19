@@ -35,6 +35,7 @@ import {
   CheckCheck,
   CheckCircle2,
   XCircle,
+  Pencil,
 } from 'lucide-react'
 import { useNotificationStore } from '@/store/auth'
 import { toast } from 'sonner'
@@ -170,6 +171,12 @@ export function ClubPlayers() {
   const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [submitting, setSubmitting] = useState(false)
 
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editPlayer, setEditPlayer] = useState<any>(null)
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '' })
+  const [editSubmitting, setEditSubmitting] = useState(false)
+
   const load = useCallback(async () => {
     try {
       const [pData, tData] = await Promise.all([
@@ -242,6 +249,27 @@ export function ClubPlayers() {
       load()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setSubmitting(false) }
+  }
+
+  const openEdit = (p: any) => {
+    setEditPlayer(p)
+    setEditForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phone || '' })
+    setEditDialogOpen(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!editPlayer) return
+    setEditSubmitting(true)
+    try {
+      await apiFetch(`/api/club/players/${editPlayer.id}`, token, {
+        method: 'PUT',
+        body: JSON.stringify(editForm),
+      })
+      toast.success('Jugador actualizado')
+      setEditDialogOpen(false)
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setEditSubmitting(false) }
   }
 
   const handleDelete = async (id: string) => {
@@ -408,10 +436,13 @@ export function ClubPlayers() {
                     </div>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedPlayer(p); setEnrollDialogOpen(true) }}>
+                    <Button variant="ghost" size="icon" title="Inscribir a torneo" onClick={() => { setSelectedPlayer(p); setEnrollDialogOpen(true) }}>
                       <Trophy className="w-4 h-4 text-primary" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)}>
+                    <Button variant="ghost" size="icon" title="Editar jugador" onClick={() => openEdit(p)}>
+                      <Pencil className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                    <Button variant="ghost" size="icon" title="Quitar del club" onClick={() => handleDelete(p.id)}>
                       <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
@@ -421,6 +452,60 @@ export function ClubPlayers() {
           ))}
         </div>
       )}
+
+      {/* Edit player dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Editar Jugador</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Nombre</Label>
+                <Input
+                  value={editForm.firstName}
+                  onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                  className="bg-input border-border text-foreground"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Apellido</Label>
+                <Input
+                  value={editForm.lastName}
+                  onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                  className="bg-input border-border text-foreground"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Teléfono</Label>
+              <Input
+                value={editForm.phone}
+                onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                className="bg-input border-border text-foreground"
+                placeholder="Opcional"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 border-border text-muted-foreground"
+                onClick={() => setEditDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={handleEditSave}
+                disabled={editSubmitting || !editForm.firstName.trim() || !editForm.lastName.trim()}
+              >
+                {editSubmitting ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Enroll dialog - modal={false} so Select dropdowns work */}
       <Dialog modal={false} open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
