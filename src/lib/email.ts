@@ -14,7 +14,8 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions) {
-  const apiKey = process.env.BREVO_API_KEY
+  // Bracket notation to bypass Next.js/webpack build-time inlining
+  const apiKey = (process.env as Record<string, string | undefined>)['BREVO_API_KEY']
   if (!apiKey) {
     console.warn('[email] BREVO_API_KEY not set — email not sent')
     return

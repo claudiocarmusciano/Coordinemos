@@ -6,23 +6,27 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const to = searchParams.get('to')
 
-  const apiKey = process.env.BREVO_API_KEY
+  // Dot notation (puede quedar inlineada como undefined por webpack)
+  const apiKeyDot = process.env.BREVO_API_KEY
+  // Bracket notation (evita el inlining de webpack)
+  const apiKey = (process.env as Record<string, string | undefined>)['BREVO_API_KEY']
 
   // Lista de nombres de variables disponibles (sin valores sensibles)
   const availableKeys = Object.keys(process.env).sort()
 
   const info: Record<string, any> = {
-    BREVO_API_KEY: apiKey ? `✅ configurada (${apiKey.length} caracteres)` : '❌ NO CONFIGURADA',
-    to: to || '(no especificado — agregá ?to=tucorreo@gmail.com)',
+    BREVO_API_KEY_dot: apiKeyDot ? `OK (${apiKeyDot.length} chars)` : 'UNDEFINED - webpack inlined',
+    BREVO_API_KEY_bracket: apiKey ? `OK (${apiKey.length} chars)` : 'UNDEFINED',
+    to: to || '(no especificado)',
     available_env_keys: availableKeys,
   }
 
   if (!apiKey) {
-    return NextResponse.json({ ok: false, info, error: 'BREVO_API_KEY no configurada' })
+    return NextResponse.json({ ok: false, info, error: 'BREVO_API_KEY no disponible en runtime' })
   }
 
   if (!to) {
-    return NextResponse.json({ ok: false, info, error: 'Falta el parámetro ?to=correo' })
+    return NextResponse.json({ ok: false, info, error: 'Falta el parametro ?to=correo' })
   }
 
   try {
@@ -36,7 +40,7 @@ export async function GET(request: Request) {
         sender: { name: 'Coordinemos Test', email: 'coordinemosaplicacion@gmail.com' },
         to: [{ email: to }],
         subject: 'Test de email — Coordinemos',
-        htmlContent: '<p>Si recibís este mail, el sistema de email está funcionando correctamente ✅</p>',
+        htmlContent: '<p>Si recibes este mail, el sistema de email esta funcionando correctamente!</p>',
       }),
     })
 
@@ -46,7 +50,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: false, info, error: `Brevo error ${response.status}`, detail: body })
     }
 
-    return NextResponse.json({ ok: true, info, message: 'Email enviado correctamente — revisá tu bandeja' })
+    return NextResponse.json({ ok: true, info, message: 'Email enviado correctamente — revisa tu bandeja' })
   } catch (err: any) {
     return NextResponse.json({ ok: false, info, error: err.message })
   }
