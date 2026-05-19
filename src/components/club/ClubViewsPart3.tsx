@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react'
 import { useAuthStore, apiFetch } from '@/store/auth'
+import { generateTimesFromBands } from '@/lib/scheduleUtils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -432,19 +433,6 @@ export function ClubMatches() {
 
 /* ─── CLUB SLOTS ────────────────────────────── */
 
-const PRESET_TIMES = [
-  { start: '07:30', end: '09:00' },
-  { start: '09:00', end: '10:30' },
-  { start: '10:30', end: '12:00' },
-  { start: '12:00', end: '13:30' },
-  { start: '13:30', end: '15:00' },
-  { start: '15:00', end: '16:30' },
-  { start: '16:30', end: '18:00' },
-  { start: '18:00', end: '19:30' },
-  { start: '19:30', end: '21:00' },
-  { start: '21:00', end: '22:30' },
-  { start: '22:30', end: '00:00' },
-]
 
 function getUpcomingDays(count = 14): string[] {
   return Array.from({ length: count }, (_, i) => {
@@ -461,6 +449,7 @@ export function ClubSlots() {
   const [slots, setSlots] = useState<any[]>([])
   const [courts, setCourts] = useState<any[]>([])
   const [tournaments, setTournaments] = useState<any[]>([])
+  const [scheduleBands, setScheduleBands] = useState<any[]>([])
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [selectedCourtId, setSelectedCourtId] = useState<string>(ALL_COURTS)
@@ -476,14 +465,16 @@ export function ClubSlots() {
 
   const loadData = useCallback(async () => {
     try {
-      const [slotData, courtData, tournamentData] = await Promise.all([
+      const [slotData, courtData, tournamentData, bandData] = await Promise.all([
         apiFetch('/api/club/slots', token),
         apiFetch('/api/club/courts', token),
         apiFetch('/api/club/tournaments', token),
+        apiFetch('/api/club/schedule', token),
       ])
       setSlots(slotData)
       setCourts(courtData)
       setTournaments(tournamentData)
+      setScheduleBands(bandData)
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
     finally { setLoading(false) }
   }, [token])
@@ -642,13 +633,18 @@ export function ClubSlots() {
 
   const todayIso = new Date().toISOString().split('T')[0]
 
+  // Compute times for the selected day from configured schedule bands
+  const dayOfWeek = new Date(selectedDay + 'T12:00:00').getDay()
+  const bandsForDay = scheduleBands.filter((b) => b.dayOfWeek === dayOfWeek)
+  const dayTimes = generateTimesFromBands(bandsForDay).map((t) => ({ start: t.startTime, end: t.endTime }))
+
   // Count available slots for the selected court (or all courts) per day
   const enabledCount = days.reduce((acc, day) => {
     let count: number
     if (isAllCourts) {
       count = slots.filter((s) => s.day === day && s.status === 'AVAILABLE').length
     } else {
-      count = PRESET_TIMES.filter(t => findSlot(selectedCourtId, day, t.start)?.status === 'AVAILABLE').length
+      count = slots.filter((s) => s.courtId === selectedCourtId && s.day === day && s.status === 'AVAILABLE').length
     }
     acc[day] = count
     return acc
@@ -866,9 +862,18 @@ export function ClubSlots() {
 
           {/* ── Slot grid ── */}
           {isAllCourts ? (
-            /* All courts view: full 11-slot interactive grid */
+            /* All courts view */
+            dayTimes.length === 0 ? (
+              <Card className="bg-card border-border">
+                <CardContent className="p-8 text-center">
+                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No hay horario configurado para este día</p>
+                  <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección <span className="text-primary font-medium">Horario</span></p>
+                </CardContent>
+              </Card>
+            ) : (
             <div className="grid grid-cols-2 gap-2">
-              {PRESET_TIMES.map((time) => {
+              {dayTimes.map((time) => {
                 const isAnyConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
                 const availableCount = courts.filter(c => findSlot(c.id, selectedDay, time.start)?.status === 'AVAILABLE').length
                 const allAvailable = availableCount === courts.length
@@ -912,10 +917,20 @@ export function ClubSlots() {
                 )
               })}
             </div>
+            )
           ) : (
             /* Single court view */
+            dayTimes.length === 0 ? (
+              <Card className="bg-card border-border">
+                <CardContent className="p-8 text-center">
+                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground text-sm">No hay horario configurado para este día</p>
+                  <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección <span className="text-primary font-medium">Horario</span></p>
+                </CardContent>
+              </Card>
+            ) : (
             <div className="grid grid-cols-2 gap-2">
-              {PRESET_TIMES.map((time) => {
+              {dayTimes.map((time) => {
                 const existing = findSlot(selectedCourtId, selectedDay, time.start)
                 const key = `${selectedCourtId}-${selectedDay}-${time.start}`
                 const isProcessing = processing.has(key)
@@ -978,6 +993,7 @@ export function ClubSlots() {
                 )
               })}
             </div>
+            )
           )}
         </>
       )}

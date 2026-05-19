@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         },
       },
       include: {
-        user: { select: { id: true, username: true } },
+        user: { select: { id: true, username: true, email: true } },
         memberships: { where: { clubId: club.id }, select: { id: true, status: true } },
         tournamentPlayers: {
           include: {
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       lastName: p.lastName,
       phone: p.phone,
       userId: p.userId,
-      user: p.user ? { id: p.user.id, username: p.user.username } : null,
+      user: p.user ? { id: p.user.id, username: p.user.username, email: p.user.email } : null,
       membership: p.memberships[0] ?? null,
       tournamentPlayers: p.tournamentPlayers.map((tp) => ({
         id: tp.id,

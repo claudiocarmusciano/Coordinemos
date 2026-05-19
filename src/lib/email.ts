@@ -15,6 +15,9 @@ function createTransporter() {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_PASS, // Gmail app password
     },
+    connectionTimeout: 8000,  // 8s para conectar
+    greetingTimeout: 8000,
+    socketTimeout: 10000,
   })
 }
 

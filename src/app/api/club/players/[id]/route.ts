@@ -25,13 +25,21 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     const { id } = await params
     const body = await request.json()
-    const { firstName, lastName, phone } = body
+    const { firstName, lastName, phone, email } = body
 
-    if (firstName === undefined && lastName === undefined && phone === undefined) {
+    if (firstName === undefined && lastName === undefined && phone === undefined && email === undefined) {
       return NextResponse.json(
-        { message: 'At least one field (firstName, lastName, phone) must be provided' },
+        { message: 'At least one field (firstName, lastName, phone, email) must be provided' },
         { status: 400 }
       )
+    }
+
+    // Validate email if provided
+    if (email !== undefined && email !== null && email !== '') {
+      const emailValue = email.trim().toLowerCase()
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+        return NextResponse.json({ message: 'El correo electrónico no es válido' }, { status: 400 })
+      }
     }
 
     // Verify player has a CONFIRMED membership with this club
@@ -51,12 +59,18 @@ export async function PUT(request: Request, { params }: RouteParams) {
         ...(firstName !== undefined && { firstName: firstName.trim() }),
         ...(lastName !== undefined && { lastName: lastName.trim() }),
         ...(phone !== undefined && { phone: phone.trim() }),
+        ...(email !== undefined && {
+          user: {
+            update: { email: email === '' ? null : email.trim().toLowerCase() },
+          },
+        }),
       },
       include: {
         user: {
           select: {
             id: true,
             username: true,
+            email: true,
             role: true,
             mustChangePassword: true,
           },

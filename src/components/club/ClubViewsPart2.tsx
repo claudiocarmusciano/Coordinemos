@@ -48,6 +48,12 @@ export function ClubTournaments() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '' })
 
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editTournament, setEditTournament] = useState<any>(null)
+  const [editForm, setEditForm] = useState({ name: '', startDate: '', endDate: '' })
+  const [editSubmitting, setEditSubmitting] = useState(false)
+
   const load = useCallback(async () => {
     try {
       const data = await apiFetch('/api/club/tournaments', token)
@@ -69,6 +75,31 @@ export function ClubTournaments() {
       setForm({ name: '', startDate: '', endDate: '' })
       load()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const openEdit = (t: any) => {
+    setEditTournament(t)
+    setEditForm({
+      name: t.name,
+      startDate: new Date(t.startDate).toISOString().split('T')[0],
+      endDate: new Date(t.endDate).toISOString().split('T')[0],
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleEditSave = async () => {
+    if (!editTournament) return
+    setEditSubmitting(true)
+    try {
+      await apiFetch(`/api/club/tournaments/${editTournament.id}`, token, {
+        method: 'PUT',
+        body: JSON.stringify(editForm),
+      })
+      toast.success('Torneo actualizado')
+      setEditDialogOpen(false)
+      load()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setEditSubmitting(false) }
   }
 
   const handleDelete = async (id: string) => {
@@ -141,14 +172,72 @@ export function ClubTournaments() {
                     <Badge variant="secondary" className="text-xs">{t.tournamentPlayers?.length || 0} inscriptos</Badge>
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => handleDelete(t.id)}>
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
+                <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" title="Editar torneo" onClick={() => openEdit(t)}>
+                    <Pencil className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" title="Eliminar torneo" onClick={() => handleDelete(t.id)}>
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Edit tournament dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Editar Torneo</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Nombre</Label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                className="bg-input border-border text-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Fecha inicio</Label>
+              <Input
+                type="date"
+                value={editForm.startDate}
+                onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
+                className="bg-input border-border text-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Fecha fin</Label>
+              <Input
+                type="date"
+                value={editForm.endDate}
+                onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
+                className="bg-input border-border text-foreground"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 border-border text-muted-foreground"
+                onClick={() => setEditDialogOpen(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
+                onClick={handleEditSave}
+                disabled={editSubmitting || !editForm.name.trim() || !editForm.startDate || !editForm.endDate}
+              >
+                {editSubmitting ? 'Guardando...' : 'Guardar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -174,7 +263,7 @@ export function ClubPlayers() {
   // Edit state
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editPlayer, setEditPlayer] = useState<any>(null)
-  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '' })
+  const [editForm, setEditForm] = useState({ firstName: '', lastName: '', phone: '', email: '' })
   const [editSubmitting, setEditSubmitting] = useState(false)
 
   const load = useCallback(async () => {
@@ -253,7 +342,7 @@ export function ClubPlayers() {
 
   const openEdit = (p: any) => {
     setEditPlayer(p)
-    setEditForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phone || '' })
+    setEditForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phone || '', email: p.user?.email || '' })
     setEditDialogOpen(true)
   }
 
@@ -485,6 +574,16 @@ export function ClubPlayers() {
                 onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
                 className="bg-input border-border text-foreground"
                 placeholder="Opcional"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground">Correo electrónico</Label>
+              <Input
+                type="email"
+                value={editForm.email}
+                onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                className="bg-input border-border text-foreground"
+                placeholder="jugador@ejemplo.com"
               />
             </div>
             <div className="flex gap-2">

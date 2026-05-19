@@ -35,10 +35,14 @@ export function LoginPage() {
         body: JSON.stringify({ dni: forgotDni.trim() }),
       })
       const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.message || 'Error al procesar la solicitud')
+        return
+      }
       setForgotMessage(data.message || '')
       setForgotDone(true)
     } catch {
-      toast.error('Error al procesar la solicitud')
+      toast.error('No se pudo conectar con el servidor')
     } finally {
       setForgotLoading(false)
     }

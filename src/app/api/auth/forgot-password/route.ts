@@ -53,7 +53,10 @@ export async function POST(request: Request) {
     const firstName = player?.firstName ?? 'Jugador'
 
     const emailTemplate = buildPasswordResetEmail(firstName, tempPassword)
-    await sendEmail({ to: user.email, ...emailTemplate })
+    // Non-blocking — don't hang the request if SMTP fails or is not configured
+    sendEmail({ to: user.email, ...emailTemplate }).catch((err) =>
+      console.error('[email] Failed to send password reset email:', err)
+    )
 
     return NextResponse.json(genericOk)
   } catch (error) {
