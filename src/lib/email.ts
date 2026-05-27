@@ -76,9 +76,9 @@ export function buildWelcomeEmail(firstName: string, tempPassword: string) {
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
-          <div style="width: 56px; height: 56px; background: #ff7835; border-radius: 12px;
+          <div style="width: 56px; height: 56px; background: #9BFF00; border-radius: 12px;
                       display: flex; align-items: center; justify-content: center;
-                      font-size: 28px; font-weight: bold; margin-bottom: 24px;">C</div>
+                      font-size: 28px; font-weight: bold; margin-bottom: 24px; color: #050505;">C</div>
           <h2 style="margin: 0 0 8px; font-size: 20px;">¡Hola, ${firstName}!</h2>
           <p style="color: #a1a1aa; margin: 0 0 24px;">
             Tu cuenta en <strong style="color:#fff;">Coordinemos</strong> fue creada por tu club.
@@ -88,7 +88,7 @@ export function buildWelcomeEmail(firstName: string, tempPassword: string) {
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Tu usuario (DNI)</p>
             <p style="margin: 0 0 16px; font-size: 20px; font-weight: bold; letter-spacing: 2px; color: #fff;">(tu DNI)</p>
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Contraseña temporal</p>
-            <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #ff7835;">${tempPassword}</p>
+            <p style="margin: 0; font-size: 24px; font-weight: bold; letter-spacing: 4px; color: #9BFF00;">${tempPassword}</p>
           </div>
           <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
             Al ingresar por primera vez, el sistema te pedirá que elijas una nueva contraseña.
@@ -105,9 +105,9 @@ export function buildPasswordResetEmail(firstName: string, tempPassword: string)
     html: `
       <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
         <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
-          <div style="width: 56px; height: 56px; background: #ff7835; border-radius: 12px;
+          <div style="width: 56px; height: 56px; background: #9BFF00; border-radius: 12px;
                       display: flex; align-items: center; justify-content: center;
-                      font-size: 28px; font-weight: bold; margin-bottom: 24px;">C</div>
+                      font-size: 28px; font-weight: bold; margin-bottom: 24px; color: #050505;">C</div>
           <h2 style="margin: 0 0 8px; font-size: 20px;">Restablecimiento de contraseña</h2>
           <p style="color: #a1a1aa; margin: 0 0 24px;">
             Hola <strong style="color:#fff;">${firstName}</strong>, recibimos una solicitud para restablecer tu contraseña.
@@ -115,7 +115,7 @@ export function buildPasswordResetEmail(firstName: string, tempPassword: string)
           </p>
           <div style="background: #27272a; border-radius: 8px; padding: 20px; margin-bottom: 24px; text-align: center;">
             <p style="margin: 0 0 8px; color: #a1a1aa; font-size: 13px;">Contraseña temporal</p>
-            <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #ff7835;">${tempPassword}</p>
+            <p style="margin: 0; font-size: 28px; font-weight: bold; letter-spacing: 6px; color: #9BFF00;">${tempPassword}</p>
           </div>
           <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
             Ingresá con tu DNI y esta contraseña. Al iniciar sesión el sistema te pedirá que elijas una nueva.

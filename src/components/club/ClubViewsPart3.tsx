@@ -788,7 +788,7 @@ export function ClubSlots() {
                 onClick={() => setSelectedCourtId(ALL_COURTS)}
                 className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                   isAllCourts
-                    ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                    ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(155,255,0,0.35)]'
                     : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
                 }`}
               >
@@ -800,7 +800,7 @@ export function ClubSlots() {
                   onClick={() => setSelectedCourtId(court.id)}
                   className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
                     selectedCourtId === court.id
-                      ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                      ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(155,255,0,0.35)]'
                       : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
                   }`}
                 >
@@ -825,7 +825,7 @@ export function ClubSlots() {
                     onClick={() => setSelectedDay(day)}
                     className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border transition-all min-w-[52px] relative ${
                       isSelected
-                        ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(255,120,53,0.3)]'
+                        ? 'bg-primary text-primary-foreground border-primary shadow-[0_0_12px_rgba(155,255,0,0.35)]'
                         : isToday
                         ? 'bg-primary/10 text-primary border-primary/30'
                         : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
