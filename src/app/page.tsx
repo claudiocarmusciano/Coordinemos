@@ -102,7 +102,7 @@ export default function HomePage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <span className="text-white font-bold text-2xl">C</span>
+            <span className="text-background font-bold text-2xl">C</span>
           </div>
           <p className="text-muted-foreground">Cargando Coordinemos...</p>
         </div>

@@ -87,7 +87,7 @@ export function LoginPage() {
               transition={{ delay: 0.2, duration: 0.4 }}
             >
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary/20">
-                <span className="text-white font-bold text-3xl">C</span>
+                <span className="text-background font-bold text-3xl">C</span>
               </div>
             </motion.div>
             <CardTitle className="text-2xl text-foreground font-bold">Coordinemos</CardTitle>
