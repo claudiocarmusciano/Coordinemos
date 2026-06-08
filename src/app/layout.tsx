@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   title: "Coordinemos - Turnos de Pádel",
   description: "Coordiná tus turnos de pádel de forma simple y rápida",
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo.svg?v=2",
   },
 };
 
