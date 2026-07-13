@@ -7,8 +7,11 @@ export interface AuthUser {
   username: string
   role: UserRole
   mustChangePassword: boolean
+  emailVerified?: boolean
+  email?: string | null
   clubId?: string
   playerId?: string
+  birthDate?: string | null
 }
 
 interface AuthState {
@@ -48,13 +51,18 @@ export type ViewName =
   | 'club-couples'
   | 'club-matches'
   | 'club-slots'
+  | 'club-recurring'
   | 'club-schedule'
   | 'player-tournaments'
   | 'player-matches'
   | 'player-notifications'
   | 'player-memberships'
+  | 'player-bookings'
+  | 'player-onboarding'
   | 'club-notifications'
   | 'change-password'
+  | 'register'
+  | 'verify-email'
 
 interface ViewState {
   currentView: ViewName

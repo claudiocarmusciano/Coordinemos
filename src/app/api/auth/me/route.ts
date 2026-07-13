@@ -13,11 +13,19 @@ export async function GET(request: Request) {
       )
     }
 
+    // emailVerified is read from the DB (source of truth), not the JWT, to avoid staleness
+    const dbUser = await db.user.findUnique({
+      where: { id: user.id },
+      select: { emailVerified: true, email: true },
+    })
+
     const result: Record<string, unknown> = {
       id: user.id,
       username: user.username,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
+      emailVerified: dbUser?.emailVerified ?? false,
+      email: dbUser?.email ?? null,
     }
 
     if (user.role === 'CLUB') {
@@ -33,6 +41,7 @@ export async function GET(request: Request) {
       })
       if (player) {
         result.playerId = player.id
+        result.birthDate = player.birthDate
       }
     }
 

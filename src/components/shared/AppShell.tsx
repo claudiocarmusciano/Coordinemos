@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useAuthStore, useViewStore, useNotificationStore, apiFetch, type ViewName } from '@/store/auth'
 import {
   LogOut,
@@ -18,6 +18,8 @@ import {
   Menu,
   X,
   Settings,
+  CalendarPlus,
+  Repeat,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -35,6 +37,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
     { label: 'Parejas', icon: <User className="w-4 h-4" />, view: 'club-couples' },
     { label: 'Partidos', icon: <Calendar className="w-4 h-4" />, view: 'club-matches' },
     { label: 'Turnos', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
+    { label: 'Reservas fijas', icon: <Repeat className="w-4 h-4" />, view: 'club-recurring' },
     { label: 'Horario', icon: <Settings className="w-4 h-4" />, view: 'club-schedule' },
     { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'club-notifications', showBadge: true },
   ],
@@ -42,8 +45,31 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: Vi
     { label: 'Mis Clubes', icon: <Building2 className="w-4 h-4" />, view: 'player-memberships' },
     { label: 'Mis Torneos', icon: <Trophy className="w-4 h-4" />, view: 'player-tournaments' },
     { label: 'Mis Partidos', icon: <Calendar className="w-4 h-4" />, view: 'player-matches' },
+    { label: 'Reservar Turno', icon: <CalendarPlus className="w-4 h-4" />, view: 'player-bookings' },
     { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'player-notifications', showBadge: true },
   ],
+}
+
+function playNotificationSound() {
+  try {
+    const ctx = new AudioContext()
+    const gain = ctx.createGain()
+    gain.connect(ctx.destination)
+    gain.gain.setValueAtTime(0, ctx.currentTime)
+    gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+
+    const osc1 = ctx.createOscillator()
+    osc1.type = 'sine'
+    osc1.frequency.setValueAtTime(880, ctx.currentTime)
+    osc1.frequency.setValueAtTime(1100, ctx.currentTime + 0.15)
+    osc1.connect(gain)
+    osc1.start(ctx.currentTime)
+    osc1.stop(ctx.currentTime + 0.5)
+    osc1.onended = () => ctx.close()
+  } catch {
+    // AudioContext not available (SSR or restricted browser)
+  }
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -51,6 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { currentView, setView } = useViewStore()
   const { unreadCount, setUnreadCount } = useNotificationStore()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const prevCountRef = useRef<number | null>(null)
 
   // Poll unread notification count for players and clubs
   useEffect(() => {
@@ -78,6 +105,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       clearInterval(interval)
     }
   }, [user?.role, token])
+
+  // Play sound when new notifications arrive
+  useEffect(() => {
+    if (prevCountRef.current !== null && unreadCount > prevCountRef.current) {
+      playNotificationSound()
+    }
+    prevCountRef.current = unreadCount
+  }, [unreadCount])
 
   // Re-poll immediately when navigating away from notifications (to reflect read status)
   useEffect(() => {

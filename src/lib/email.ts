@@ -126,3 +126,61 @@ export function buildPasswordResetEmail(firstName: string, tempPassword: string)
     `,
   }
 }
+
+export function buildVerificationEmail(firstName: string, link: string) {
+  return {
+    subject: 'Coordinemos — Verificá tu email',
+    html: `
+      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+        <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
+          <div style="width: 56px; height: 56px; background: #9BFF00; border-radius: 12px;
+                      display: flex; align-items: center; justify-content: center;
+                      font-size: 28px; font-weight: bold; margin-bottom: 24px; color: #050505;">C</div>
+          <h2 style="margin: 0 0 8px; font-size: 20px;">¡Hola, ${firstName}!</h2>
+          <p style="color: #a1a1aa; margin: 0 0 24px;">
+            Gracias por registrarte en <strong style="color:#fff;">Coordinemos</strong>.
+            Confirmá tu email para poder reservar turnos:
+          </p>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <a href="${link}" style="display: inline-block; background: #9BFF00; color: #050505;
+               text-decoration: none; font-weight: bold; padding: 14px 28px; border-radius: 8px; font-size: 15px;">
+              Verificar mi email
+            </a>
+          </div>
+          <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
+            El enlace vence en 24 horas. Si no creaste esta cuenta, ignorá este correo.
+          </p>
+        </div>
+      </div>
+    `,
+  }
+}
+
+export function buildClaimEmail(firstName: string, link: string) {
+  return {
+    subject: 'Coordinemos — Activá tu cuenta',
+    html: `
+      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
+        <div style="background: #18181b; border-radius: 12px; padding: 32px; color: #fff;">
+          <div style="width: 56px; height: 56px; background: #9BFF00; border-radius: 12px;
+                      display: flex; align-items: center; justify-content: center;
+                      font-size: 28px; font-weight: bold; margin-bottom: 24px; color: #050505;">C</div>
+          <h2 style="margin: 0 0 8px; font-size: 20px;">Hola, ${firstName}</h2>
+          <p style="color: #a1a1aa; margin: 0 0 24px;">
+            Alguien intentó registrarse con tu DNI en <strong style="color:#fff;">Coordinemos</strong>.
+            Ya tenías una cuenta creada por un club. Si fuiste vos, activala y elegí tu contraseña:
+          </p>
+          <div style="text-align: center; margin-bottom: 24px;">
+            <a href="${link}" style="display: inline-block; background: #9BFF00; color: #050505;
+               text-decoration: none; font-weight: bold; padding: 14px 28px; border-radius: 8px; font-size: 15px;">
+              Activar mi cuenta
+            </a>
+          </div>
+          <p style="color: #a1a1aa; font-size: 13px; margin: 0;">
+            El enlace vence en 24 horas. Si no fuiste vos, ignorá este correo: tu cuenta sigue protegida.
+          </p>
+        </div>
+      </div>
+    `,
+  }
+}

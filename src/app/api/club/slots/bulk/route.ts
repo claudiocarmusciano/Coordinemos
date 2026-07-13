@@ -20,9 +20,14 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { date } = body
+    const { date, price } = body
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
       return NextResponse.json({ message: 'date must be YYYY-MM-DD' }, { status: 400 })
+    }
+    const priceValue =
+      price === undefined || price === null || price === '' ? null : Number(price)
+    if (priceValue !== null && (!Number.isFinite(priceValue) || priceValue < 0)) {
+      return NextResponse.json({ message: 'Precio inválido' }, { status: 400 })
     }
 
     const dayOfWeek = new Date(date + 'T12:00:00').getDay()
@@ -61,6 +66,7 @@ export async function POST(request: Request) {
               courtId: court.id,
               clubId: club.id,
               status: 'AVAILABLE',
+              price: priceValue,
             },
           })
           created++

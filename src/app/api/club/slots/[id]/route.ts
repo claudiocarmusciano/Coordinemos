@@ -66,6 +66,9 @@ export async function PUT(request: Request, { params }: RouteParams) {
             },
           },
         },
+        booking: {
+          include: { player: { include: { user: { select: { id: true } } } } },
+        },
       },
     })
 
@@ -155,6 +158,34 @@ export async function PUT(request: Request, { params }: RouteParams) {
             },
           },
         },
+      })
+
+      return NextResponse.json({ slot: updatedSlot })
+    }
+
+    // Special handling for CANCELLED status on a reserva eventual (Booking)
+    if (status === 'CANCELLED' && slot.booking) {
+      const booking = slot.booking
+
+      await db.$transaction(async (tx) => {
+        await tx.booking.delete({ where: { id: booking.id } })
+        await tx.slot.update({ where: { id }, data: { status: 'AVAILABLE' } })
+
+        if (booking.player) {
+          await tx.notification.create({
+            data: {
+              userId: booking.player.user.id,
+              message: `Tu reserva del ${slot.day} a las ${slot.startTime} fue cancelada por el club.`,
+              type: 'SLOT_CANCELLED',
+              relatedId: slot.id,
+            },
+          })
+        }
+      })
+
+      const updatedSlot = await db.slot.findUnique({
+        where: { id },
+        include: { court: { select: { id: true, name: true } } },
       })
 
       return NextResponse.json({ slot: updatedSlot })

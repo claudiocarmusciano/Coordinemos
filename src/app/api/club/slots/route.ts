@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getUserFromRequest } from '@/lib/auth'
+import { materializeRecurringBookings } from '@/lib/recurring'
 
 // GET /api/club/slots — Return all slots for the club
 export async function GET(request: Request) {
@@ -34,9 +35,12 @@ export async function GET(request: Request) {
       },
     })
 
+    // Materialize upcoming occurrences of any active weekly recurring bookings
+    await materializeRecurringBookings(club.id)
+
     const where: Record<string, unknown> = {
       clubId: club.id,
-      status: { in: ['AVAILABLE', 'CONFIRMED'] },
+      status: { in: ['AVAILABLE', 'CONFIRMED', 'RESERVED'] },
       day: { gte: today },
     }
     const statusParam = searchParams.get('status')
@@ -73,6 +77,11 @@ export async function GET(request: Request) {
             },
           },
         },
+        booking: {
+          include: {
+            player: { select: { firstName: true, lastName: true } },
+          },
+        },
       },
       orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
     })
@@ -86,6 +95,7 @@ export async function GET(request: Request) {
         courtId: s.courtId,
         clubId: s.clubId,
         status: s.status,
+        price: s.price,
         court: { id: s.court.id, name: s.court.name },
       }
       if (s.matchAssignment) {
@@ -102,6 +112,17 @@ export async function GET(request: Request) {
               player2: { firstName: ma.match.couple2.player2.firstName, lastName: ma.match.couple2.player2.lastName },
             },
           },
+        }
+      }
+      if (s.booking) {
+        result.booking = {
+          id: s.booking.id,
+          createdByRole: s.booking.createdByRole,
+          customerName: s.booking.customerName,
+          isRecurring: !!s.booking.recurringBookingId,
+          player: s.booking.player
+            ? { firstName: s.booking.player.firstName, lastName: s.booking.player.lastName }
+            : null,
         }
       }
       return result
@@ -137,7 +158,12 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { day, startTime, endTime, courtId } = body
+    const { day, startTime, endTime, courtId, price } = body
+    const priceValue =
+      price === undefined || price === null || price === '' ? null : Number(price)
+    if (priceValue !== null && (!Number.isFinite(priceValue) || priceValue < 0)) {
+      return NextResponse.json({ message: 'Precio inválido' }, { status: 400 })
+    }
 
     if (!day || typeof day !== 'string' || !day.trim()) {
       return NextResponse.json(
@@ -212,6 +238,7 @@ export async function POST(request: Request) {
         courtId,
         clubId: club.id,
         status: 'AVAILABLE',
+        price: priceValue,
       },
       include: {
         court: {

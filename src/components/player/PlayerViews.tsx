@@ -1,10 +1,12 @@
 'use client'
 
 import React, { useEffect, useState, useCallback } from 'react'
-import { useAuthStore, useNotificationStore, apiFetch } from '@/store/auth'
+import { useAuthStore, useViewStore, useNotificationStore, apiFetch } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Trophy,
   Calendar,
@@ -16,6 +18,7 @@ import {
   BellRing,
   CheckCheck,
   Building2,
+  CalendarPlus,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -567,6 +570,297 @@ export function PlayerNotifications() {
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ─── PLAYER BOOKINGS (reserva eventual, autoservicio) ────────────────────────────── */
+export function PlayerBookings() {
+  const { token, user } = useAuthStore()
+  const emailVerified = user?.emailVerified !== false // undefined (legacy) treated as verified
+  const [clubs, setClubs] = useState<any[]>([])
+  const [selectedClubId, setSelectedClubId] = useState('')
+  const [slotsByDay, setSlotsByDay] = useState<any[]>([])
+  const [selectedSlot, setSelectedSlot] = useState<any>(null)
+  const [myBookings, setMyBookings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [slotsLoading, setSlotsLoading] = useState(false)
+  const [booking, setBooking] = useState(false)
+  const [resending, setResending] = useState(false)
+
+  const loadClubsAndBookings = useCallback(async () => {
+    try {
+      const [allClubs, bookings] = await Promise.all([
+        apiFetch('/api/player/clubs', token),
+        apiFetch('/api/player/bookings', token),
+      ])
+      setClubs(allClubs)
+      setMyBookings(bookings)
+      if (allClubs.length > 0) {
+        setSelectedClubId((prev) => prev || allClubs[0].id)
+      }
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { loadClubsAndBookings() }, [loadClubsAndBookings])
+
+  const handleResend = async () => {
+    if (!user?.email) {
+      toast.message('Revisá tu bandeja de entrada (y spam).')
+      return
+    }
+    setResending(true)
+    try {
+      await apiFetch('/api/auth/resend-verification', token, {
+        method: 'POST',
+        body: JSON.stringify({ email: user.email }),
+      })
+      toast.success('Te reenviamos el correo de verificación')
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setResending(false)
+    }
+  }
+
+  const loadSlots = useCallback(async () => {
+    if (!selectedClubId) return
+    setSlotsLoading(true)
+    setSelectedSlot(null)
+    try {
+      const data = await apiFetch(`/api/player/slots?clubId=${selectedClubId}`, token)
+      setSlotsByDay(data.slotsByDay || [])
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setSlotsLoading(false) }
+  }, [token, selectedClubId])
+
+  useEffect(() => { loadSlots() }, [loadSlots])
+
+  const handleReserve = async () => {
+    if (!selectedSlot) return
+    setBooking(true)
+    try {
+      await apiFetch('/api/player/bookings', token, {
+        method: 'POST',
+        body: JSON.stringify({ slotId: selectedSlot.id }),
+      })
+      toast.success('Turno reservado')
+      setSelectedSlot(null)
+      loadSlots()
+      loadClubsAndBookings()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setBooking(false)
+    }
+  }
+
+  if (loading) return <p className="text-muted-foreground">Cargando...</p>
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold text-foreground">Reservar Turno</h2>
+        <p className="text-sm text-muted-foreground">Reservá un turno suelto en cualquier club</p>
+      </div>
+
+      {!emailVerified && (
+        <Card className="bg-yellow-500/5 border-yellow-500/30">
+          <CardContent className="p-4 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-foreground font-medium">Verificá tu email para poder reservar</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Te enviamos un correo de verificación al registrarte.
+              </p>
+              <button
+                type="button"
+                onClick={handleResend}
+                disabled={resending}
+                className="text-xs text-primary hover:underline font-medium mt-2"
+              >
+                {resending ? 'Reenviando...' : 'Reenviar correo'}
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {clubs.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No hay clubes disponibles todavía</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {clubs.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+              {clubs.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setSelectedClubId(c.id)}
+                  className={`flex-shrink-0 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
+                    selectedClubId === c.id
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <Card className="bg-card border-border">
+            <CardContent className="p-4">
+              {slotsLoading ? (
+                <p className="text-sm text-muted-foreground">Cargando turnos...</p>
+              ) : slotsByDay.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No hay turnos disponibles en este club</p>
+              ) : (
+                <div className="space-y-3">
+                  {slotsByDay.map((d: any) => (
+                    <div key={d.day}>
+                      <p className="text-sm font-medium text-foreground mb-2">
+                        {new Date(d.day + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {d.slots
+                          .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime))
+                          .map((slot: any) => {
+                            const isSelected = selectedSlot?.id === slot.id
+                            return (
+                              <button
+                                key={slot.id}
+                                onClick={() => setSelectedSlot({ ...slot, day: d.day })}
+                                className={`p-3 rounded-lg border text-sm transition-all ${
+                                  isSelected
+                                    ? 'bg-primary/20 border-primary text-primary font-medium'
+                                    : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/50'
+                                }`}
+                              >
+                                <p className="font-medium">{slot.startTime} – {slot.endTime}</p>
+                                <p className="text-xs mt-0.5 opacity-70">{slot.court?.name}</p>
+                                {typeof slot.price === 'number' && (
+                                  <p className="text-xs mt-0.5 font-semibold text-primary">${slot.price}</p>
+                                )}
+                              </button>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {selectedSlot && (
+                <Button
+                  onClick={handleReserve}
+                  disabled={booking || !emailVerified}
+                  className="w-full mt-4 bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  <CalendarPlus className="w-4 h-4 mr-1.5" />
+                  {!emailVerified
+                    ? 'Verificá tu email para reservar'
+                    : booking ? 'Reservando...' : 'Reservar este turno'}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-3">Tus reservas</h3>
+        {myBookings.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tenés reservas eventuales todavía</p>
+        ) : (
+          <div className="space-y-2">
+            {myBookings.map((b) => (
+              <Card key={b.id} className="bg-card border-border">
+                <CardContent className="p-4">
+                  <p className="text-sm text-foreground font-medium">
+                    🏸 {b.slot.day} · {b.slot.startTime}–{b.slot.endTime} · {b.slot.court?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    📍 {b.slot.club?.name} · Para cancelar, contactá al club
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ─── PLAYER ONBOARDING (completar perfil post-verificación) ────────────────────────────── */
+export function PlayerOnboarding() {
+  const { token, updateUser } = useAuthStore()
+  const { setView } = useViewStore()
+  const [birthDate, setBirthDate] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const finish = () => setView('player-memberships')
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await apiFetch('/api/player/profile', token, {
+        method: 'PATCH',
+        body: JSON.stringify({ birthDate: birthDate || null }),
+      })
+      updateUser({ birthDate: birthDate || null })
+      toast.success('Perfil actualizado')
+      finish()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="max-w-md mx-auto space-y-6">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-foreground">¡Hola! 👋</h2>
+        <p className="text-sm text-muted-foreground mt-1">Completá tu perfil para terminar</p>
+      </div>
+
+      <Card className="bg-card border-border">
+        <CardContent className="p-6 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="birthDate" className="text-muted-foreground">Fecha de nacimiento</Label>
+            <Input
+              id="birthDate"
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
+              className="bg-input border-border text-foreground h-11"
+            />
+            <p className="text-xs text-muted-foreground">Podés completarla ahora o más tarde.</p>
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={saving || !birthDate}
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 font-medium"
+          >
+            {saving ? 'Guardando...' : 'Finalizar'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={finish}
+            className="w-full border-border text-muted-foreground hover:text-foreground"
+          >
+            Omitir por ahora
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }

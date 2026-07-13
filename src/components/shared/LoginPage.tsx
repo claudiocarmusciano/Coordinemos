@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useAuthStore } from '@/store/auth'
+import { useAuthStore, useViewStore } from '@/store/auth'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { Eye, EyeOff } from 'lucide-react'
 
 export function LoginPage() {
   const { setAuth } = useAuthStore()
+  const { setView } = useViewStore()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -96,12 +97,12 @@ export function LoginPage() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username" className="text-muted-foreground">Usuario</Label>
+                <Label htmlFor="username" className="text-muted-foreground">Email o usuario</Label>
                 <Input
                   id="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Tu usuario / DNI"
+                  placeholder="Tu email o DNI"
                   className="bg-input border-border text-foreground h-11"
                   required
                   autoFocus
@@ -198,6 +199,18 @@ export function LoginPage() {
                   </div>
                 </form>
               )}
+            </div>
+
+            {/* Register link */}
+            <div className="mt-4 pt-4 border-t border-border text-center">
+              <span className="text-xs text-muted-foreground">¿No tenés cuenta? </span>
+              <button
+                type="button"
+                onClick={() => setView('register')}
+                className="text-xs text-primary hover:underline font-medium"
+              >
+                Registrate
+              </button>
             </div>
 
           </CardContent>

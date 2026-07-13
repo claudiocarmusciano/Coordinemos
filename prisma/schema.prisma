@@ -14,7 +14,10 @@ model User {
   password         String
   role             String   // ADMIN | CLUB | PLAYER
   mustChangePassword Boolean @default(true)
-  email            String?  // used for password recovery (players)
+  email            String?  @unique // login + password recovery / verification (players)
+  emailVerified    Boolean  @default(false)
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -37,6 +40,7 @@ model Club {
   memberships   ClubMembership[]
   slots         Slot[]
   scheduleBands ScheduleBand[]
+  recurringBookings RecurringBooking[]
 }
 
 model ScheduleBand {
@@ -58,6 +62,7 @@ model Court {
   club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   slots Slot[]
+  recurringBookings RecurringBooking[]
 }
 
 // ─── TOURNAMENTS ────────────────────────────────────────────
@@ -76,18 +81,21 @@ model Tournament {
 
 // ─── PLAYERS ────────────────────────────────────────────────
 model Player {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   firstName String
   lastName  String
-  phone     String @default("")
-  userId    String @unique
-  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone     String  @default("")
+  birthDate String? // YYYY-MM-DD, opcional (completado en el onboarding del jugador)
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   memberships       ClubMembership[]
   tournamentPlayers TournamentPlayer[]
   coupleAsPlayer1   Couple[]           @relation("Player1")
   coupleAsPlayer2   Couple[]           @relation("Player2")
   slotPreferences   SlotPreference[]
+  bookings          Booking[]
+  recurringBookings RecurringBooking[]
 }
 
 // ─── CLUB MEMBERSHIPS ───────────────────────────────────────
@@ -153,11 +161,13 @@ model Slot {
   endTime   String // HH:mm
   courtId   String
   clubId    String
-  status    String @default("AVAILABLE") // AVAILABLE | CONFIRMED | CANCELLED
+  status    String @default("AVAILABLE") // AVAILABLE | CONFIRMED | RESERVED | CANCELLED
+  price     Float? // precio del turno que carga el club (opcional; prep. pagos)
   court     Court  @relation(fields: [courtId], references: [id], onDelete: Cascade)
   club      Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
 
   matchAssignment MatchAssignment?
+  booking         Booking?
 }
 
 // ─── SLOT PREFERENCES (player selects day+time for a match) ─
@@ -183,6 +193,41 @@ model MatchAssignment {
   cancelledAt DateTime?
   match       Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
   slot        Slot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+}
+
+// ─── BOOKINGS (reserva eventual: turno suelto, sin torneo) ───
+model Booking {
+  id            String   @id @default(cuid())
+  slotId        String   @unique
+  playerId      String? // reserva de autoservicio (jugador con cuenta)
+  customerName  String? // reserva walk-in cargada por el club (sin cuenta)
+  customerPhone String?
+  createdByRole String // 'CLUB' | 'PLAYER'
+  price         Float? // snapshot del precio del turno al reservar (prep. comisión)
+  recurringBookingId String? // ocurrencia de una reserva fija semanal
+  createdAt     DateTime @default(now())
+  slot          Slot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  player        Player?  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  recurringBooking RecurringBooking? @relation(fields: [recurringBookingId], references: [id], onDelete: Cascade)
+}
+
+// ─── RESERVAS FIJAS SEMANALES (plantilla de recurrencia) ─────
+model RecurringBooking {
+  id            String   @id @default(cuid())
+  clubId        String
+  courtId       String
+  dayOfWeek     Int      // 0=Domingo … 6=Sábado
+  startTime     String   // HH:mm
+  endTime       String   // HH:mm
+  playerId      String?  // beneficiario registrado
+  customerName  String?  // o walk-in (sin cuenta)
+  customerPhone String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  club     Club    @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  court    Court   @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  player   Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  bookings Booking[]
 }
 
 // ─── NOTIFICATIONS ──────────────────────────────────────────

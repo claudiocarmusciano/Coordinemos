@@ -24,9 +24,12 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const tournamentId = searchParams.get('tournamentId')
+    const explicitClubId = searchParams.get('clubId')
 
     // Determine which club's slots to show:
-    // If tournamentId provided, use that tournament's club.
+    // If tournamentId provided, use that tournament's club (with date range).
+    // Else if clubId provided explicitly → una reserva eventual puede ser en CUALQUIER club
+    //   (no se exige membresía), así que se usa directamente.
     // Otherwise fall back to first CONFIRMED membership's club.
     let clubId: string | null = null
     let dateRange: { gte: string; lte: string } | null = null
@@ -39,6 +42,8 @@ export async function GET(request: Request) {
         const endDate = tournament.endDate.toISOString().split('T')[0]
         dateRange = { gte: startDate, lte: endDate }
       }
+    } else if (explicitClubId) {
+      clubId = explicitClubId
     }
 
     if (!clubId) {
@@ -91,6 +96,7 @@ export async function GET(request: Request) {
           endTime: slot.endTime,
           courtId: slot.courtId,
           court: slot.court,
+          price: slot.price,
         })),
       }))
 

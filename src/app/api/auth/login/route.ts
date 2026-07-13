@@ -15,7 +15,11 @@ export async function POST(request: Request) {
       )
     }
 
-    const user = await db.user.findUnique({ where: { username } })
+    // Accept either an email (players) or a username/DNI (players, clubs, admin)
+    const identifier = String(username).trim()
+    const user = identifier.includes('@')
+      ? await db.user.findUnique({ where: { email: identifier.toLowerCase() } })
+      : await db.user.findUnique({ where: { username: identifier } })
 
     if (!user) {
       return NextResponse.json(
@@ -49,6 +53,8 @@ export async function POST(request: Request) {
         username: user.username,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        emailVerified: user.emailVerified,
+        email: user.email,
       },
     })
   } catch (error) {

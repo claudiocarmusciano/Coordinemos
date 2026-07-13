@@ -205,6 +205,7 @@ export async function POST(request: Request) {
           role: 'PLAYER',
           mustChangePassword: true,
           email: emailValue,
+          emailVerified: true, // el club responde por el jugador → no requiere verificación
         },
       })
 

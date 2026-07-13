@@ -30,9 +30,11 @@ import {
   AlertCircle,
   XCircle,
   CalendarDays,
+  Repeat,
 } from 'lucide-react'
 
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 
 /* ─── CLUB COUPLES ────────────────────────────── */
@@ -459,9 +461,16 @@ export function ClubSlots() {
   // Bulk generate dialog state
   const [generateOpen, setGenerateOpen] = useState(false)
   const [generateDate, setGenerateDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [generatePrice, setGeneratePrice] = useState('')
   const [preview, setPreview] = useState<any>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
+
+  // Reserva eventual (walk-in booking) dialog state
+  const [bookingSlot, setBookingSlot] = useState<any>(null)
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [creatingBooking, setCreatingBooking] = useState(false)
 
   const loadData = useCallback(async () => {
     try {
@@ -505,7 +514,7 @@ export function ClubSlots() {
     try {
       const data = await apiFetch('/api/club/slots/bulk', token, {
         method: 'POST',
-        body: JSON.stringify({ date: generateDate }),
+        body: JSON.stringify({ date: generateDate, price: generatePrice || null }),
       })
       toast.success(`${data.created} turno${data.created !== 1 ? 's' : ''} creado${data.created !== 1 ? 's' : ''} · ${data.skipped} omitido${data.skipped !== 1 ? 's' : ''}`)
       setGenerateOpen(false)
@@ -544,8 +553,9 @@ export function ClubSlots() {
 
   const handleToggleAll = async (time: { start: string; end: string }) => {
     const hasConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
-    if (hasConfirmed) {
-      toast.error('Hay un turno confirmado en alguna cancha, no se puede modificar')
+    const hasReserved = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'RESERVED')
+    if (hasConfirmed || hasReserved) {
+      toast.error('Hay un turno confirmado o reservado en alguna cancha, no se puede modificar')
       return
     }
 
@@ -591,6 +601,10 @@ export function ClubSlots() {
       toast.error('No podés eliminar un turno ya confirmado')
       return
     }
+    if (existing?.status === 'RESERVED') {
+      toast.error('No podés eliminar un turno ya reservado')
+      return
+    }
 
     setProcessing((prev) => new Set(prev).add(key))
     try {
@@ -619,6 +633,45 @@ export function ClubSlots() {
         body: JSON.stringify({ status: 'CANCELLED' }),
       })
       toast.success('Turno cancelado')
+      loadData()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const openBookingDialog = (slot: any, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setBookingSlot(slot)
+    setCustomerName('')
+    setCustomerPhone('')
+  }
+
+  const handleCreateBooking = async () => {
+    if (!bookingSlot || !customerName.trim()) return
+    setCreatingBooking(true)
+    try {
+      await apiFetch('/api/club/bookings', token, {
+        method: 'POST',
+        body: JSON.stringify({
+          slotId: bookingSlot.id,
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim() || undefined,
+        }),
+      })
+      toast.success('Reserva creada')
+      setBookingSlot(null)
+      loadData()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally {
+      setCreatingBooking(false)
+    }
+  }
+
+  const handleCancelBooking = async (bookingId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!confirm('¿Cancelar esta reserva?')) return
+    try {
+      await apiFetch(`/api/club/bookings/${bookingId}`, token, { method: 'DELETE' })
+      toast.success('Reserva cancelada')
       loadData()
     } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
   }
@@ -669,14 +722,28 @@ export function ClubSlots() {
               <DialogTitle className="text-foreground">Generar turnos en lote</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
-              <div className="space-y-1.5">
-                <label className="text-sm text-muted-foreground">Fecha</label>
-                <input
-                  type="date"
-                  value={generateDate}
-                  onChange={(e) => setGenerateDate(e.target.value)}
-                  className="w-full sm:w-48 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground"
-                />
+              <div className="flex flex-wrap gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-sm text-muted-foreground">Fecha</label>
+                  <input
+                    type="date"
+                    value={generateDate}
+                    onChange={(e) => setGenerateDate(e.target.value)}
+                    className="w-full sm:w-48 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm text-muted-foreground">Precio (opcional)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    inputMode="numeric"
+                    value={generatePrice}
+                    onChange={(e) => setGeneratePrice(e.target.value)}
+                    placeholder="$"
+                    className="w-full sm:w-32 bg-input border border-border rounded-md px-3 py-2 text-sm text-foreground"
+                  />
+                </div>
               </div>
 
               {previewLoading && (
@@ -855,6 +922,10 @@ export function ClubSlots() {
               Confirmado
             </span>
             <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-500/25 border border-amber-500/50 inline-block" />
+              Reservado
+            </span>
+            <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-muted/60 border border-border inline-block" />
               Sin cargar
             </span>
@@ -875,6 +946,7 @@ export function ClubSlots() {
             <div className="grid grid-cols-2 gap-2">
               {dayTimes.map((time) => {
                 const isAnyConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
+                const isAnyReserved = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'RESERVED')
                 const availableCount = courts.filter(c => findSlot(c.id, selectedDay, time.start)?.status === 'AVAILABLE').length
                 const allAvailable = availableCount === courts.length
                 const isAnyProcessing = courts.some(c => processing.has(`${c.id}-${selectedDay}-${time.start}`))
@@ -883,10 +955,12 @@ export function ClubSlots() {
                   <button
                     key={time.start}
                     onClick={() => handleToggleAll(time)}
-                    disabled={isAnyConfirmed || isAnyProcessing}
+                    disabled={isAnyConfirmed || isAnyReserved || isAnyProcessing}
                     className={`relative p-4 rounded-xl border text-left transition-all select-none ${
                       isAnyConfirmed
                         ? 'bg-primary/10 border-primary/40 cursor-default'
+                        : isAnyReserved
+                        ? 'bg-amber-500/10 border-amber-500/40 cursor-default'
                         : allAvailable
                         ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
                         : availableCount > 0
@@ -895,7 +969,7 @@ export function ClubSlots() {
                     } ${isAnyProcessing ? 'opacity-40 pointer-events-none' : ''}`}
                   >
                     <p className={`text-lg font-bold leading-none ${
-                      isAnyConfirmed ? 'text-primary' : availableCount > 0 ? 'text-green-400' : 'text-muted-foreground'
+                      isAnyConfirmed ? 'text-primary' : isAnyReserved ? 'text-amber-400' : availableCount > 0 ? 'text-green-400' : 'text-muted-foreground'
                     }`}>
                       {time.start}
                     </p>
@@ -905,8 +979,11 @@ export function ClubSlots() {
                         {availableCount}/{courts.length} canchas
                       </p>
                     )}
-                    {(allAvailable || availableCount > 0) && !isAnyConfirmed && (
+                    {(allAvailable || availableCount > 0) && !isAnyConfirmed && !isAnyReserved && (
                       <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                    )}
+                    {isAnyReserved && (
+                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500" />
                     )}
                     {isAnyProcessing && (
                       <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
@@ -935,28 +1012,37 @@ export function ClubSlots() {
                 const key = `${selectedCourtId}-${selectedDay}-${time.start}`
                 const isProcessing = processing.has(key)
                 const isConfirmed = existing?.status === 'CONFIRMED'
+                const isReserved = existing?.status === 'RESERVED'
                 const isAvailable = existing?.status === 'AVAILABLE'
 
+                const isLocked = isProcessing || isConfirmed || isReserved
                 return (
-                  <button
+                  <div
                     key={time.start}
-                    onClick={() => handleToggle(time)}
-                    disabled={isProcessing || isConfirmed}
+                    role="button"
+                    tabIndex={isLocked ? -1 : 0}
+                    onClick={isLocked ? undefined : () => handleToggle(time)}
+                    onKeyDown={isLocked ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle(time) } }}
                     className={`relative p-4 rounded-xl border text-left transition-all select-none ${
                       isConfirmed
                         ? 'bg-primary/10 border-primary/40 cursor-default'
+                        : isReserved
+                        ? 'bg-amber-500/10 border-amber-500/40 cursor-default'
                         : isAvailable
-                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
-                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
+                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95 cursor-pointer'
+                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95 cursor-pointer'
                     } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
                   >
                     {/* Time label */}
                     <p className={`text-lg font-bold leading-none ${
-                      isConfirmed ? 'text-primary' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
+                      isConfirmed ? 'text-primary' : isReserved ? 'text-amber-400' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
                     }`}>
                       {time.start}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
+                    {typeof existing?.price === 'number' && (
+                      <p className="text-[11px] font-semibold text-primary mt-0.5">${existing.price}</p>
+                    )}
 
                     {/* Match info for confirmed slots */}
                     {isConfirmed && existing?.matchAssignment && (
@@ -967,9 +1053,29 @@ export function ClubSlots() {
                       </p>
                     )}
 
-                    {/* Status dot */}
+                    {/* Booking info for reserved slots */}
+                    {isReserved && existing?.booking && (
+                      <p className="text-[10px] text-amber-400/80 mt-1.5 leading-tight">
+                        {existing.booking.isRecurring && <span className="font-semibold">🔁 fija · </span>}
+                        {existing.booking.customerName
+                          ?? `${existing.booking.player?.firstName} ${existing.booking.player?.lastName}`}
+                      </p>
+                    )}
+
+                    {/* Status dot for reserved */}
+                    {isReserved && (
+                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500" />
+                    )}
+
+                    {/* Reservar button for available slots */}
                     {isAvailable && (
-                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
+                      <button
+                        onClick={(e) => openBookingDialog(existing, e)}
+                        className="mt-2 w-full flex items-center justify-center gap-1 rounded-lg bg-green-500/20 hover:bg-green-500/35 text-green-300 text-xs font-semibold py-1.5 transition-colors"
+                        title="Reservar este turno"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Reservar
+                      </button>
                     )}
 
                     {/* Cancel button for confirmed */}
@@ -983,19 +1089,306 @@ export function ClubSlots() {
                       </button>
                     )}
 
+                    {/* Cancel button for reserved */}
+                    {isReserved && existing?.booking && (
+                      <button
+                        onClick={(e) => handleCancelBooking(existing.booking.id, e)}
+                        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
+                        title="Cancelar reserva"
+                      >
+                        ✕
+                      </button>
+                    )}
+
                     {/* Spinner */}
                     {isProcessing && (
                       <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
                         <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                       </div>
                     )}
-                  </button>
+                  </div>
                 )
               })}
             </div>
             )
           )}
         </>
+      )}
+
+      {/* ── Reserva eventual dialog ── */}
+      <Dialog open={!!bookingSlot} onOpenChange={(open) => { if (!open) setBookingSlot(null) }}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Reservar turno</DialogTitle>
+          </DialogHeader>
+          {bookingSlot && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                {bookingSlot.day} · {bookingSlot.startTime}–{bookingSlot.endTime}
+              </p>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Nombre del cliente</Label>
+                <Input
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="bg-input border-border text-foreground"
+                  placeholder="Nombre y apellido"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Teléfono (opcional)</Label>
+                <Input
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="bg-input border-border text-foreground"
+                  placeholder="+54 9..."
+                />
+              </div>
+              <Button
+                onClick={handleCreateBooking}
+                disabled={creatingBooking || !customerName.trim()}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {creatingBooking ? 'Reservando...' : 'Reservar'}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/* ─── CLUB RESERVAS FIJAS (recurrentes semanales) ────────────── */
+const WEEKDAYS = [
+  { value: 1, label: 'Lunes' },
+  { value: 2, label: 'Martes' },
+  { value: 3, label: 'Miércoles' },
+  { value: 4, label: 'Jueves' },
+  { value: 5, label: 'Viernes' },
+  { value: 6, label: 'Sábado' },
+  { value: 0, label: 'Domingo' },
+]
+
+export function ClubRecurringBookings() {
+  const { token } = useAuthStore()
+  const [recurrings, setRecurrings] = useState<any[]>([])
+  const [courts, setCourts] = useState<any[]>([])
+  const [players, setPlayers] = useState<any[]>([])
+  const [bands, setBands] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // form state
+  const [courtId, setCourtId] = useState('')
+  const [dayOfWeek, setDayOfWeek] = useState('1')
+  const [timeKey, setTimeKey] = useState('') // "start|end"
+  const [manualStart, setManualStart] = useState('')
+  const [manualEnd, setManualEnd] = useState('')
+  const [beneficiaryType, setBeneficiaryType] = useState<'player' | 'walkin'>('player')
+  const [playerId, setPlayerId] = useState('')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+
+  const loadData = useCallback(async () => {
+    try {
+      const [rec, courtData, playerData, bandData] = await Promise.all([
+        apiFetch('/api/club/recurring-bookings', token),
+        apiFetch('/api/club/courts', token),
+        apiFetch('/api/club/players', token),
+        apiFetch('/api/club/schedule', token),
+      ])
+      setRecurrings(rec)
+      setCourts(courtData)
+      setPlayers(playerData)
+      setBands(bandData)
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+    finally { setLoading(false) }
+  }, [token])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  // Time options from the schedule bands for the selected weekday
+  const dayTimes = generateTimesFromBands(
+    bands.filter((b) => b.dayOfWeek === Number(dayOfWeek))
+  )
+
+  const handleCreate = async () => {
+    let startTime = ''
+    let endTime = ''
+    if (dayTimes.length > 0) {
+      if (!timeKey) { toast.error('Elegí un horario'); return }
+      ;[startTime, endTime] = timeKey.split('|')
+    } else {
+      if (!/^\d{2}:\d{2}$/.test(manualStart) || !/^\d{2}:\d{2}$/.test(manualEnd)) {
+        toast.error('Ingresá un horario válido (HH:mm)'); return
+      }
+      startTime = manualStart; endTime = manualEnd
+    }
+    if (!courtId) { toast.error('Elegí una cancha'); return }
+    if (beneficiaryType === 'player' && !playerId) { toast.error('Elegí un jugador'); return }
+    if (beneficiaryType === 'walkin' && !customerName.trim()) { toast.error('Ingresá el nombre del cliente'); return }
+
+    setSaving(true)
+    try {
+      const body: any = { courtId, dayOfWeek: Number(dayOfWeek), startTime, endTime }
+      if (beneficiaryType === 'player') body.playerId = playerId
+      else { body.customerName = customerName.trim(); body.customerPhone = customerPhone.trim() || undefined }
+      const res = await apiFetch('/api/club/recurring-bookings', token, {
+        method: 'POST', body: JSON.stringify(body),
+      })
+      const conflicts = res.conflicts?.length || 0
+      toast.success(`Reserva fija creada${conflicts > 0 ? ` (${conflicts} conflicto/s desplazado/s)` : ''}`)
+      setDialogOpen(false)
+      setPlayerId(''); setCustomerName(''); setCustomerPhone(''); setTimeKey('')
+      loadData()
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+    } finally { setSaving(false) }
+  }
+
+  const handleCancel = async (id: string) => {
+    if (!confirm('¿Cancelar esta reserva fija? Se liberan las fechas futuras.')) return
+    try {
+      await apiFetch(`/api/club/recurring-bookings/${id}`, token, { method: 'DELETE' })
+      toast.success('Reserva fija cancelada')
+      loadData()
+    } catch (err: unknown) { toast.error(err instanceof Error ? err.message : 'Error') }
+  }
+
+  const dayLabel = (d: number) => WEEKDAYS.find((w) => w.value === d)?.label ?? '—'
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Reservas fijas</h2>
+          <p className="text-sm text-muted-foreground">Turnos reservados todas las semanas para un jugador</p>
+        </div>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0">
+              <Plus className="w-4 h-4 mr-1.5" /> Nueva reserva fija
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="bg-card border-border max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-foreground">Nueva reserva fija</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-1">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Cancha</Label>
+                <Select value={courtId} onValueChange={setCourtId}>
+                  <SelectTrigger className="bg-input border-border text-foreground"><SelectValue placeholder="Elegí una cancha" /></SelectTrigger>
+                  <SelectContent>
+                    {courts.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Día de la semana</Label>
+                <Select value={dayOfWeek} onValueChange={(v) => { setDayOfWeek(v); setTimeKey('') }}>
+                  <SelectTrigger className="bg-input border-border text-foreground"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {WEEKDAYS.map((w) => <SelectItem key={w.value} value={String(w.value)}>{w.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Horario</Label>
+                {dayTimes.length > 0 ? (
+                  <Select value={timeKey} onValueChange={setTimeKey}>
+                    <SelectTrigger className="bg-input border-border text-foreground"><SelectValue placeholder="Elegí un horario" /></SelectTrigger>
+                    <SelectContent>
+                      {dayTimes.map((t) => (
+                        <SelectItem key={t.startTime} value={`${t.startTime}|${t.endTime}`}>
+                          {t.startTime} – {t.endTime}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input value={manualStart} onChange={(e) => setManualStart(e.target.value)} placeholder="Inicio HH:mm" className="bg-input border-border text-foreground" />
+                    <Input value={manualEnd} onChange={(e) => setManualEnd(e.target.value)} placeholder="Fin HH:mm" className="bg-input border-border text-foreground" />
+                  </div>
+                )}
+                {dayTimes.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No hay franja configurada para ese día; ingresá el horario a mano.</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Para quién</Label>
+                <div className="flex gap-2">
+                  <Button type="button" variant={beneficiaryType === 'player' ? 'default' : 'outline'}
+                    onClick={() => setBeneficiaryType('player')}
+                    className={beneficiaryType === 'player' ? 'flex-1 bg-primary text-primary-foreground' : 'flex-1 border-border'}>
+                    Jugador
+                  </Button>
+                  <Button type="button" variant={beneficiaryType === 'walkin' ? 'default' : 'outline'}
+                    onClick={() => setBeneficiaryType('walkin')}
+                    className={beneficiaryType === 'walkin' ? 'flex-1 bg-primary text-primary-foreground' : 'flex-1 border-border'}>
+                    Cliente sin cuenta
+                  </Button>
+                </div>
+                {beneficiaryType === 'player' ? (
+                  <Select value={playerId} onValueChange={setPlayerId}>
+                    <SelectTrigger className="bg-input border-border text-foreground"><SelectValue placeholder="Elegí un jugador" /></SelectTrigger>
+                    <SelectContent>
+                      {players.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="space-y-2">
+                    <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Nombre del cliente" className="bg-input border-border text-foreground" />
+                    <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Teléfono (opcional)" className="bg-input border-border text-foreground" />
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={handleCreate} disabled={saving} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+                {saving ? 'Creando...' : 'Crear reserva fija'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <p className="text-muted-foreground text-sm">Cargando...</p>
+      ) : recurrings.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="p-8 text-center">
+            <Repeat className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">No hay reservas fijas todavía</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {recurrings.map((r) => (
+            <Card key={r.id} className="bg-card border-border">
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-foreground font-medium">
+                    🔁 {dayLabel(r.dayOfWeek)} · {r.startTime}–{r.endTime}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {r.court?.name} · {r.player ? `${r.player.firstName} ${r.player.lastName}` : r.customerName}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => handleCancel(r.id)} title="Cancelar reserva fija">
+                  <Trash2 className="w-4 h-4 text-destructive" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   )
