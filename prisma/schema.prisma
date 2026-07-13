@@ -14,7 +14,7 @@ model User {
   password         String
   role             String   // ADMIN | CLUB | PLAYER
   mustChangePassword Boolean @default(true)
-  email            String?  @unique // login + password recovery / verification (players)
+  email            String?  // login + password recovery / verification (players). No @unique: prod tiene emails vacíos duplicados; la unicidad se valida en el registro.
   emailVerified    Boolean  @default(false)
   verificationToken       String?   @unique
   verificationTokenExpiry DateTime?

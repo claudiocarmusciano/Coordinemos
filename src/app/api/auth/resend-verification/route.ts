@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     if (!email || typeof email !== 'string') return generic
 
-    const user = await db.user.findUnique({ where: { email: email.trim().toLowerCase() } })
+    const user = await db.user.findFirst({ where: { email: email.trim().toLowerCase() } })
     if (!user || user.emailVerified) return generic
 
     const token = randomBytes(32).toString('hex')

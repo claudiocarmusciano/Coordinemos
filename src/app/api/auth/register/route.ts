@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 
     // ── Registro nuevo ──
     // Email must not be taken by another account
-    const emailTaken = await db.user.findUnique({ where: { email: emailValue } })
+    const emailTaken = await db.user.findFirst({ where: { email: emailValue } })
     if (emailTaken) {
       return NextResponse.json({ message: 'Ese email ya está registrado' }, { status: 409 })
     }

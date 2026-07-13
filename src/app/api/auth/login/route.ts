@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     // Accept either an email (players) or a username/DNI (players, clubs, admin)
     const identifier = String(username).trim()
     const user = identifier.includes('@')
-      ? await db.user.findUnique({ where: { email: identifier.toLowerCase() } })
+      ? await db.user.findFirst({ where: { email: identifier.toLowerCase() } })
       : await db.user.findUnique({ where: { username: identifier } })
 
     if (!user) {
