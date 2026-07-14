@@ -457,6 +457,8 @@ export function ClubSlots() {
   const [selectedCourtId, setSelectedCourtId] = useState<string>(ALL_COURTS)
   const [selectedDay, setSelectedDay] = useState(() => new Date().toISOString().split('T')[0])
   const [processing, setProcessing] = useState<Set<string>>(new Set())
+  // Timeline: celda seleccionada (cancha + franja) para el panel de detalle/acciones
+  const [selectedCell, setSelectedCell] = useState<{ courtId: string; start: string; end: string } | null>(null)
 
   // Bulk generate dialog state
   const [generateOpen, setGenerateOpen] = useState(false)
@@ -547,6 +549,9 @@ export function ClubSlots() {
   }, [selectedTournamentId])
 
   const isAllCourts = selectedCourtId === ALL_COURTS
+
+  // Al cambiar de día o de cancha, cerrar el panel de detalle de la celda
+  useEffect(() => { setSelectedCell(null) }, [selectedDay, selectedCourtId])
 
   const findSlot = (courtId: string, day: string, start: string) =>
     slots.find((s) => s.courtId === courtId && s.day === day && s.startTime === start)
@@ -931,187 +936,190 @@ export function ClubSlots() {
             </span>
           </div>
 
-          {/* ── Slot grid ── */}
-          {isAllCourts ? (
-            /* All courts view */
-            dayTimes.length === 0 ? (
-              <Card className="bg-card border-border">
-                <CardContent className="p-8 text-center">
-                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground text-sm">No hay horario configurado para este día</p>
-                  <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección <span className="text-primary font-medium">Horario</span></p>
-                </CardContent>
-              </Card>
-            ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {dayTimes.map((time) => {
-                const isAnyConfirmed = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'CONFIRMED')
-                const isAnyReserved = courts.some(c => findSlot(c.id, selectedDay, time.start)?.status === 'RESERVED')
-                const availableCount = courts.filter(c => findSlot(c.id, selectedDay, time.start)?.status === 'AVAILABLE').length
-                const allAvailable = availableCount === courts.length
-                const isAnyProcessing = courts.some(c => processing.has(`${c.id}-${selectedDay}-${time.start}`))
-
-                return (
-                  <button
-                    key={time.start}
-                    onClick={() => handleToggleAll(time)}
-                    disabled={isAnyConfirmed || isAnyReserved || isAnyProcessing}
-                    className={`relative p-4 rounded-xl border text-left transition-all select-none ${
-                      isAnyConfirmed
-                        ? 'bg-primary/10 border-primary/40 cursor-default'
-                        : isAnyReserved
-                        ? 'bg-amber-500/10 border-amber-500/40 cursor-default'
-                        : allAvailable
-                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95'
-                        : availableCount > 0
-                        ? 'bg-green-500/5 border-green-500/20 hover:bg-green-500/10 active:scale-95'
-                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95'
-                    } ${isAnyProcessing ? 'opacity-40 pointer-events-none' : ''}`}
-                  >
-                    <p className={`text-lg font-bold leading-none ${
-                      isAnyConfirmed ? 'text-primary' : isAnyReserved ? 'text-amber-400' : availableCount > 0 ? 'text-green-400' : 'text-muted-foreground'
-                    }`}>
-                      {time.start}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
-                    {availableCount > 0 && (
-                      <p className="text-[10px] text-green-500/70 mt-1 font-medium">
-                        {availableCount}/{courts.length} canchas
-                      </p>
-                    )}
-                    {(allAvailable || availableCount > 0) && !isAnyConfirmed && !isAnyReserved && (
-                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-green-500" />
-                    )}
-                    {isAnyReserved && (
-                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500" />
-                    )}
-                    {isAnyProcessing && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-            )
-          ) : (
-            /* Single court view */
-            dayTimes.length === 0 ? (
-              <Card className="bg-card border-border">
-                <CardContent className="p-8 text-center">
-                  <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground text-sm">No hay horario configurado para este día</p>
-                  <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección <span className="text-primary font-medium">Horario</span></p>
-                </CardContent>
-              </Card>
-            ) : (
-            <div className="grid grid-cols-2 gap-2">
-              {dayTimes.map((time) => {
-                const existing = findSlot(selectedCourtId, selectedDay, time.start)
-                const key = `${selectedCourtId}-${selectedDay}-${time.start}`
-                const isProcessing = processing.has(key)
-                const isConfirmed = existing?.status === 'CONFIRMED'
-                const isReserved = existing?.status === 'RESERVED'
-                const isAvailable = existing?.status === 'AVAILABLE'
-
-                const isLocked = isProcessing || isConfirmed || isReserved
-                return (
+          {/* ── Timeline (grilla: filas = canchas, columnas = franjas horarias) ── */}
+          {dayTimes.length === 0 ? (
+            <Card className="bg-card border-border">
+              <CardContent className="p-8 text-center">
+                <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">No hay horario configurado para este día</p>
+                <p className="text-xs text-muted-foreground mt-1">Configurá franjas en la sección <span className="text-primary font-medium">Horario</span></p>
+              </CardContent>
+            </Card>
+          ) : (() => {
+            const rowCourts = isAllCourts ? courts : courts.filter((c) => c.id === selectedCourtId)
+            return (
+              <div className="space-y-4">
+                <div className="overflow-x-auto pb-1 -mx-1 px-1">
                   <div
-                    key={time.start}
-                    role="button"
-                    tabIndex={isLocked ? -1 : 0}
-                    onClick={isLocked ? undefined : () => handleToggle(time)}
-                    onKeyDown={isLocked ? undefined : (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle(time) } }}
-                    className={`relative p-4 rounded-xl border text-left transition-all select-none ${
-                      isConfirmed
-                        ? 'bg-primary/10 border-primary/40 cursor-default'
-                        : isReserved
-                        ? 'bg-amber-500/10 border-amber-500/40 cursor-default'
-                        : isAvailable
-                        ? 'bg-green-500/10 border-green-500/40 hover:bg-green-500/15 active:scale-95 cursor-pointer'
-                        : 'bg-card border-border hover:border-primary/40 hover:bg-muted/30 active:scale-95 cursor-pointer'
-                    } ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                    className="inline-grid gap-1 min-w-full align-top"
+                    style={{ gridTemplateColumns: `minmax(96px, max-content) repeat(${dayTimes.length}, minmax(58px, 1fr))` }}
                   >
-                    {/* Time label */}
-                    <p className={`text-lg font-bold leading-none ${
-                      isConfirmed ? 'text-primary' : isReserved ? 'text-amber-400' : isAvailable ? 'text-green-400' : 'text-muted-foreground'
-                    }`}>
-                      {time.start}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">hasta {time.end}</p>
-                    {typeof existing?.price === 'number' && (
-                      <p className="text-[11px] font-semibold text-primary mt-0.5">${existing.price}</p>
-                    )}
+                    {/* Encabezado: esquina + horas (en "Todas", tocar la hora habilita/quita en todas las canchas) */}
+                    <div className="sticky left-0 z-20 bg-background" />
+                    {dayTimes.map((t) => (
+                      isAllCourts ? (
+                        <button
+                          key={t.start}
+                          onClick={() => handleToggleAll(t)}
+                          title="Habilitar / quitar en todas las canchas"
+                          className="pb-1 text-center text-[11px] font-semibold text-muted-foreground hover:text-primary tabular-nums transition-colors"
+                        >
+                          {t.start}
+                        </button>
+                      ) : (
+                        <div key={t.start} className="pb-1 text-center text-[11px] font-semibold text-muted-foreground tabular-nums">
+                          {t.start}
+                        </div>
+                      )
+                    ))}
 
-                    {/* Match info for confirmed slots */}
-                    {isConfirmed && existing?.matchAssignment && (
-                      <p className="text-[10px] text-primary/70 mt-1.5 leading-tight">
-                        {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
-                        {' vs '}
-                        {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
-                      </p>
-                    )}
+                    {/* Filas por cancha */}
+                    {rowCourts.map((court) => (
+                      <React.Fragment key={court.id}>
+                        <div className="sticky left-0 z-10 bg-background pr-3 flex items-center text-sm font-medium text-foreground whitespace-nowrap">
+                          {court.name}
+                        </div>
+                        {dayTimes.map((time) => {
+                          const existing = findSlot(court.id, selectedDay, time.start)
+                          const status = existing?.status
+                          const key = `${court.id}-${selectedDay}-${time.start}`
+                          const isProcessing = processing.has(key)
+                          const isSel = selectedCell?.courtId === court.id && selectedCell?.start === time.start
 
-                    {/* Booking info for reserved slots */}
-                    {isReserved && existing?.booking && (
-                      <p className="text-[10px] text-amber-400/80 mt-1.5 leading-tight">
-                        {existing.booking.isRecurring && <span className="font-semibold">🔁 fija · </span>}
-                        {existing.booking.customerName
-                          ?? `${existing.booking.player?.firstName} ${existing.booking.player?.lastName}`}
-                      </p>
-                    )}
+                          let cellClass = 'bg-muted/25 border-border border-dashed hover:border-primary/40'
+                          if (status === 'CONFIRMED') cellClass = 'bg-primary/25 border-primary/50 hover:bg-primary/30'
+                          else if (status === 'RESERVED') cellClass = 'bg-amber-500/25 border-amber-500/50 hover:bg-amber-500/30'
+                          else if (status === 'AVAILABLE') cellClass = 'bg-green-500/20 border-green-500/45 hover:bg-green-500/30'
 
-                    {/* Status dot for reserved */}
-                    {isReserved && (
-                      <span className="absolute top-3 right-3 w-2 h-2 rounded-full bg-amber-500" />
-                    )}
-
-                    {/* Reservar button for available slots */}
-                    {isAvailable && (
-                      <button
-                        onClick={(e) => openBookingDialog(existing, e)}
-                        className="mt-2 w-full flex items-center justify-center gap-1 rounded-lg bg-green-500/20 hover:bg-green-500/35 text-green-300 text-xs font-semibold py-1.5 transition-colors"
-                        title="Reservar este turno"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Reservar
-                      </button>
-                    )}
-
-                    {/* Cancel button for confirmed */}
-                    {isConfirmed && (
-                      <button
-                        onClick={(e) => handleCancelSlot(existing.id, e)}
-                        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
-                        title="Cancelar turno"
-                      >
-                        ✕
-                      </button>
-                    )}
-
-                    {/* Cancel button for reserved */}
-                    {isReserved && existing?.booking && (
-                      <button
-                        onClick={(e) => handleCancelBooking(existing.booking.id, e)}
-                        className="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded-full text-destructive hover:bg-destructive/10 transition-colors text-xs font-bold"
-                        title="Cancelar reserva"
-                      >
-                        ✕
-                      </button>
-                    )}
-
-                    {/* Spinner */}
-                    {isProcessing && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-card/50">
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                      </div>
-                    )}
+                          return (
+                            <button
+                              key={time.start}
+                              onClick={() => setSelectedCell({ courtId: court.id, start: time.start, end: time.end })}
+                              title={`${court.name} · ${time.start}–${time.end}`}
+                              className={`relative h-11 rounded-md border transition-all active:scale-95 ${cellClass} ${isSel ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} ${isProcessing ? 'opacity-40 pointer-events-none' : ''}`}
+                            >
+                              {status === 'CONFIRMED' && <CheckCircle2 className="w-3.5 h-3.5 text-primary mx-auto" />}
+                              {status === 'RESERVED' && <span className="block w-1.5 h-1.5 rounded-full bg-amber-400 mx-auto" />}
+                              {isProcessing && (
+                                <span className="absolute inset-0 flex items-center justify-center">
+                                  <span className="w-3.5 h-3.5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                </span>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </React.Fragment>
+                    ))}
                   </div>
-                )
-              })}
-            </div>
+                </div>
+
+                {/* Panel de detalle / acciones de la celda seleccionada */}
+                {selectedCell && (() => {
+                  const court = courts.find((c) => c.id === selectedCell.courtId)
+                  const time = { start: selectedCell.start, end: selectedCell.end }
+                  const existing = findSlot(selectedCell.courtId, selectedDay, time.start)
+                  const status = existing?.status
+                  const key = `${selectedCell.courtId}-${selectedDay}-${time.start}`
+                  const isProcessing = processing.has(key)
+
+                  const statusMeta =
+                    status === 'CONFIRMED' ? { label: 'Confirmado', cls: 'text-primary' }
+                    : status === 'RESERVED' ? { label: 'Reservado', cls: 'text-amber-400' }
+                    : status === 'AVAILABLE' ? { label: 'Disponible', cls: 'text-green-400' }
+                    : { label: 'Sin cargar', cls: 'text-muted-foreground' }
+
+                  return (
+                    <div className="rounded-xl border border-border bg-card p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-foreground">
+                            {court?.name} · {time.start}–{time.end}
+                          </p>
+                          <p className={`text-xs font-medium mt-0.5 ${statusMeta.cls}`}>{statusMeta.label}</p>
+                          {typeof existing?.price === 'number' && (
+                            <p className="text-[11px] font-semibold text-primary mt-0.5">${existing.price}</p>
+                          )}
+                          {status === 'CONFIRMED' && existing?.matchAssignment && (
+                            <p className="text-[11px] text-primary/70 mt-1.5 leading-tight">
+                              {existing.matchAssignment.match?.couple1?.player1?.firstName} & {existing.matchAssignment.match?.couple1?.player2?.firstName}
+                              {' vs '}
+                              {existing.matchAssignment.match?.couple2?.player1?.firstName} & {existing.matchAssignment.match?.couple2?.player2?.firstName}
+                            </p>
+                          )}
+                          {status === 'RESERVED' && existing?.booking && (
+                            <p className="text-[11px] text-amber-400/80 mt-1.5 leading-tight">
+                              {existing.booking.isRecurring && <span className="font-semibold">🔁 fija · </span>}
+                              {existing.booking.customerName ?? `${existing.booking.player?.firstName} ${existing.booking.player?.lastName}`}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => setSelectedCell(null)}
+                          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                          title="Cerrar"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 mt-3">
+                        {!status && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleToggle(time, selectedCell.courtId)}
+                            disabled={isProcessing}
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                          >
+                            <Plus className="w-3.5 h-3.5 mr-1" /> Habilitar turno
+                          </Button>
+                        )}
+                        {status === 'AVAILABLE' && (
+                          <>
+                            <Button
+                              size="sm"
+                              onClick={(e) => openBookingDialog(existing, e)}
+                              className="bg-green-500/20 hover:bg-green-500/35 text-green-300"
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" /> Reservar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleToggle(time, selectedCell.courtId)}
+                              disabled={isProcessing}
+                              className="border-border text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1" /> Quitar
+                            </Button>
+                          </>
+                        )}
+                        {status === 'CONFIRMED' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => handleCancelSlot(existing.id, e)}
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                          >
+                            <XCircle className="w-3.5 h-3.5 mr-1" /> Cancelar turno
+                          </Button>
+                        )}
+                        {status === 'RESERVED' && existing?.booking && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => handleCancelBooking(existing.booking.id, e)}
+                            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                          >
+                            <XCircle className="w-3.5 h-3.5 mr-1" /> Cancelar reserva
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
             )
-          )}
+          })()}
         </>
       )}
 
