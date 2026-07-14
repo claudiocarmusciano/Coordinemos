@@ -85,10 +85,12 @@ export async function GET(request: Request) {
                 },
               },
             },
+            // All 4 players' preferences (not just mine) so each player can see
+            // the availability of the other 3 and coordinate a common slot.
             slotPreferences: {
-              where: { playerId: player.id },
               select: {
                 id: true,
+                playerId: true,
                 day: true,
                 startTime: true,
                 endTime: true,
@@ -116,23 +118,43 @@ export async function GET(request: Request) {
           startDate: tournament.startDate,
           endDate: tournament.endDate,
           club: tournament.club,
-          matches: matches.map((match) => ({
-            id: match.id,
-            tournamentId: match.tournamentId,
-            couple1Id: match.couple1Id,
-            couple2Id: match.couple2Id,
-            couple1: match.couple1,
-            couple2: match.couple2,
-            matchAssignment: match.matchAssignment
-              ? {
-                  id: match.matchAssignment.id,
-                  confirmedAt: match.matchAssignment.confirmedAt,
-                  cancelledAt: match.matchAssignment.cancelledAt,
-                  slot: match.matchAssignment.slot,
-                }
-              : null,
-            mySlotPreferences: match.slotPreferences,
-          })),
+          matches: matches.map((match) => {
+            // Build per-player availability for all 4 players in the match.
+            const matchPlayers = [
+              match.couple1.player1,
+              match.couple1.player2,
+              match.couple2.player1,
+              match.couple2.player2,
+            ]
+            const teamPreferences = matchPlayers.map((p) => ({
+              playerId: p.id,
+              firstName: p.firstName,
+              lastName: p.lastName,
+              isMe: p.id === player.id,
+              slots: match.slotPreferences
+                .filter((sp) => sp.playerId === p.id)
+                .map((sp) => ({ day: sp.day, startTime: sp.startTime, endTime: sp.endTime })),
+            }))
+
+            return {
+              id: match.id,
+              tournamentId: match.tournamentId,
+              couple1Id: match.couple1Id,
+              couple2Id: match.couple2Id,
+              couple1: match.couple1,
+              couple2: match.couple2,
+              matchAssignment: match.matchAssignment
+                ? {
+                    id: match.matchAssignment.id,
+                    confirmedAt: match.matchAssignment.confirmedAt,
+                    cancelledAt: match.matchAssignment.cancelledAt,
+                    slot: match.matchAssignment.slot,
+                  }
+                : null,
+              mySlotPreferences: match.slotPreferences.filter((sp) => sp.playerId === player.id),
+              teamPreferences,
+            }
+          }),
           availableSlots: availableSlots.map((slot) => ({
             id: slot.id,
             day: slot.day,

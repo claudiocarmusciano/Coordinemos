@@ -5,7 +5,8 @@ import { getUserFromRequest } from '@/lib/auth'
 // ─── MATCHING LOGIC ──────────────────────────────────────────
 // When all 4 players in a match agree on a day+startTime+endTime,
 // confirm the match by creating a MatchAssignment and updating the slot.
-async function checkAndConfirmMatch(matchId: string) {
+// Returns true if the match was confirmed in this call, false otherwise.
+async function checkAndConfirmMatch(matchId: string): Promise<boolean> {
   try {
   // Get the match with all 4 players
   const match = await db.match.findUnique({
@@ -17,10 +18,10 @@ async function checkAndConfirmMatch(matchId: string) {
       matchAssignment: true,
     },
   })
-  if (!match) return
+  if (!match) return false
 
   // If already confirmed, skip
-  if (match.matchAssignment && !match.matchAssignment.cancelledAt) return
+  if (match.matchAssignment && !match.matchAssignment.cancelledAt) return false
 
   const players = [
     match.couple1.player1,
@@ -141,15 +142,105 @@ async function checkAndConfirmMatch(matchId: string) {
           })
         }
 
+        // Clear any pending "no common slot" notices for this match — now resolved.
+        await db.notification.updateMany({
+          where: { type: 'NO_COMMON_SLOT', relatedId: match.id, read: false },
+          data: { read: true },
+        })
+
         console.log(`[checkAndConfirmMatch] Match ${matchId} confirmed successfully`)
-        break // Only confirm one slot per match
+        return true // Only confirm one slot per match
       } else {
         console.log(`[checkAndConfirmMatch] No AVAILABLE slot found for that time — slot may not exist or already CONFIRMED`)
       }
     }
   }
+  return false
   } catch (err) {
     console.error('[checkAndConfirmMatch] Error:', err)
+    return false
+  }
+}
+
+// ─── NO-COMMON-SLOT NOTIFICATION ─────────────────────────────
+// When all 4 players in a match have submitted at least one preference but there
+// is NO day+time where all 4 coincide, notify the 4 players so they can review
+// each other's availability (surfaced in GET /api/player/tournaments) and adjust.
+// Deduplicated: skips a player who already has an UNREAD NO_COMMON_SLOT notice
+// for this match, to avoid piling up notifications on every re-save.
+async function notifyIfNoCommonSlot(matchId: string) {
+  try {
+    const match = await db.match.findUnique({
+      where: { id: matchId },
+      include: {
+        couple1: { include: { player1: true, player2: true } },
+        couple2: { include: { player1: true, player2: true } },
+        slotPreferences: true,
+        matchAssignment: true,
+      },
+    })
+    if (!match) return
+
+    // Already confirmed → nothing to coordinate.
+    if (match.matchAssignment && !match.matchAssignment.cancelledAt) return
+
+    const players = [
+      match.couple1.player1,
+      match.couple1.player2,
+      match.couple2.player1,
+      match.couple2.player2,
+    ]
+    const requiredPlayerIds = new Set(players.map(p => p.id))
+
+    // Every one of the 4 must have submitted at least one preference.
+    const playersWithPrefs = new Set(match.slotPreferences.map(p => p.playerId))
+    const allSubmitted = [...requiredPlayerIds].every(id => playersWithPrefs.has(id))
+    if (!allSubmitted) return
+
+    // Is there any day+time where all 4 coincide? If so, no notice needed
+    // (checkAndConfirmMatch handles confirmation, or a slot just wasn't available).
+    const slotTimes = new Map<string, Set<string>>()
+    for (const pref of match.slotPreferences) {
+      const key = `${pref.day}|${pref.startTime}|${pref.endTime}`
+      if (!slotTimes.has(key)) slotTimes.set(key, new Set())
+      slotTimes.get(key)!.add(pref.playerId)
+    }
+    const hasCommon = [...slotTimes.values()].some(
+      ids => [...requiredPlayerIds].every(id => ids.has(id))
+    )
+    if (hasCommon) return
+
+    const tournament = await db.tournament.findUnique({
+      where: { id: match.tournamentId },
+      select: { name: true },
+    })
+    const tournamentName = tournament?.name || 'Torneo'
+    const msg = `Los 4 jugadores del partido (${tournamentName}) ya cargaron su disponibilidad pero todavía no hay un horario en común. Revisá la disponibilidad de todos en "Mis Partidos" y ajustá tus turnos para coincidir.`
+
+    for (const p of players) {
+      // Dedup: skip if this player already has an unread NO_COMMON_SLOT notice for this match.
+      const existing = await db.notification.findFirst({
+        where: {
+          userId: p.userId,
+          type: 'NO_COMMON_SLOT',
+          relatedId: match.id,
+          read: false,
+        },
+      })
+      if (existing) continue
+
+      await db.notification.create({
+        data: {
+          userId: p.userId,
+          message: msg,
+          type: 'NO_COMMON_SLOT',
+          relatedId: match.id,
+        },
+      })
+    }
+    console.log(`[notifyIfNoCommonSlot] Match ${matchId}: notified players (no common slot)`)
+  } catch (err) {
+    console.error('[notifyIfNoCommonSlot] Error:', err)
   }
 }
 
@@ -297,7 +388,11 @@ export async function POST(request: Request) {
     })
 
     // ── Call matching logic ──
-    await checkAndConfirmMatch(matchId)
+    const confirmed = await checkAndConfirmMatch(matchId)
+    // If not auto-confirmed, notify the group when all 4 submitted but don't coincide.
+    if (!confirmed) {
+      await notifyIfNoCommonSlot(matchId)
+    }
 
     // Return updated preferences
     const updatedPreferences = await db.slotPreference.findMany({

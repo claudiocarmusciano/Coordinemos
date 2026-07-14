@@ -237,6 +237,19 @@ export function PlayerMatches() {
           const inCouple1 = isPlayerInCouple(m.couple1, playerId)
           const opponentCouple = inCouple1 ? m.couple2 : m.couple1
 
+          // Team availability (all 4 players) for coordination when there's no common slot yet
+          const teamPreferences = m.teamPreferences || []
+          const otherPlayers = teamPreferences.filter((p: any) => !p.isMe)
+          const totalOthers = otherPlayers.length
+          // How many of the OTHER players picked each slot key
+          const othersBySlot: Record<string, number> = {}
+          otherPlayers.forEach((p: any) =>
+            (p.slots || []).forEach((s: any) => {
+              const k = `${s.day}|${s.startTime}|${s.endTime}`
+              othersBySlot[k] = (othersBySlot[k] || 0) + 1
+            })
+          )
+
           // Group available slots by day
           const slotsByDay: Record<string, any[]> = {}
           availableSlots.forEach((s: any) => {
@@ -306,6 +319,9 @@ export function PlayerMatches() {
                                   .map((slot: any) => {
                                     const key = `${slot.day}|${slot.startTime}|${slot.endTime}`
                                     const isSelected = currentSelected.has(key)
+                                    const othersCount = othersBySlot[key] || 0
+                                    // All other players already chose this slot → picking it confirms the match
+                                    const allOthersHere = totalOthers > 0 && othersCount === totalOthers
                                     return (
                                       <button
                                         key={key}
@@ -313,17 +329,60 @@ export function PlayerMatches() {
                                         className={`p-3 rounded-lg border text-sm transition-all ${
                                           isSelected
                                             ? 'bg-primary/20 border-primary text-primary font-medium'
+                                            : allOthersHere
+                                            ? 'bg-green-500/10 border-green-500/40 text-green-500 hover:border-green-500'
                                             : 'bg-muted/30 border-border text-muted-foreground hover:border-primary/50'
                                         }`}
                                       >
                                         <p className="font-medium">{slot.startTime} – {slot.endTime}</p>
-                                        <p className="text-xs mt-0.5 opacity-70">Canchas disponibles</p>
+                                        {totalOthers > 0 ? (
+                                          <p className={`text-xs mt-0.5 ${allOthersHere ? 'font-medium' : 'opacity-70'}`}>
+                                            {allOthersHere
+                                              ? '✓ Los otros 3 pueden'
+                                              : `${othersCount}/${totalOthers} compañeros`}
+                                          </p>
+                                        ) : (
+                                          <p className="text-xs mt-0.5 opacity-70">Canchas disponibles</p>
+                                        )}
                                       </button>
                                     )
                                   })}
                               </div>
                             </div>
                           ))}
+                      </div>
+                    )}
+                    {teamPreferences.length > 0 && (
+                      <div className="mt-4 rounded-lg border border-border bg-muted/20 p-3">
+                        <p className="text-xs font-medium text-foreground mb-2">Disponibilidad del equipo</p>
+                        <div className="space-y-2">
+                          {teamPreferences.map((p: any) => (
+                            <div key={p.playerId} className="flex flex-col gap-1">
+                              <span className="text-xs text-muted-foreground">
+                                {p.isMe ? 'Vos' : `${p.firstName} ${p.lastName}`}
+                              </span>
+                              {(p.slots || []).length === 0 ? (
+                                <span className="text-xs text-destructive/80">Sin cargar aún</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  {(p.slots || [])
+                                    .slice()
+                                    .sort((a: any, b: any) =>
+                                      (a.day + a.startTime).localeCompare(b.day + b.startTime)
+                                    )
+                                    .map((s: any) => (
+                                      <span
+                                        key={`${p.playerId}-${s.day}-${s.startTime}`}
+                                        className="px-1.5 py-0.5 rounded bg-muted/50 text-[11px] text-muted-foreground"
+                                      >
+                                        {new Date(s.day + 'T12:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'numeric' })} {s.startTime}
+                                      </span>
+                                    ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {savedMatches.has(m.id) ? (
