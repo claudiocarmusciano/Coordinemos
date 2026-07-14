@@ -731,6 +731,19 @@ export function PlayerBookings() {
                         {d.slots
                           .sort((a: any, b: any) => a.startTime.localeCompare(b.startTime))
                           .map((slot: any) => {
+                            // Taken slots show only as "Reservado" — never who reserved (privacy)
+                            if (slot.available === false) {
+                              return (
+                                <div
+                                  key={slot.id}
+                                  className="p-3 rounded-lg border border-border bg-muted/10 text-sm opacity-60 cursor-not-allowed select-none"
+                                >
+                                  <p className="font-medium text-muted-foreground">{slot.startTime} – {slot.endTime}</p>
+                                  <p className="text-xs mt-0.5 opacity-70">{slot.court?.name}</p>
+                                  <p className="text-xs mt-0.5 font-semibold text-amber-400/80">Reservado</p>
+                                </div>
+                              )
+                            }
                             const isSelected = selectedSlot?.id === slot.id
                             return (
                               <button

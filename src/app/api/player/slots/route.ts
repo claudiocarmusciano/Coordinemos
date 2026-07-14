@@ -59,13 +59,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ slotsByDay: [] })
     }
 
+    // Player-facing view: show available slots (selectable) plus taken ones
+    // (RESERVED/CONFIRMED) shown only as "Reservado" — never the name of who booked (privacy).
+    const today = new Date().toISOString().split('T')[0]
     const where: Record<string, unknown> = {
       clubId,
-      status: 'AVAILABLE',
-    }
-
-    if (dateRange) {
-      where.day = dateRange
+      status: { in: ['AVAILABLE', 'RESERVED', 'CONFIRMED'] },
+      day: dateRange ?? { gte: today },
     }
 
     const slots = await db.slot.findMany({
@@ -97,6 +97,7 @@ export async function GET(request: Request) {
           courtId: slot.courtId,
           court: slot.court,
           price: slot.price,
+          available: slot.status === 'AVAILABLE', // taken slots (RESERVED/CONFIRMED) show only as "Reservado"
         })),
       }))
 
