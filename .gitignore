@@ -54,6 +54,10 @@ server.log
 # Skills directory
 /skills/
 
+# Documentos de especificación del usuario (inputs locales, no deliverables).
+# Manual-Marca-Coordinemos.docx SÍ se trackea (asset de marca) y no cae en esta regla.
+Quiero que*.docx
+
 # SQLite database (persisted on Railway volume, not committed to git)
 /db/*.db
 /db/*.db-journal
