@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Trash2, Plus, Clock } from 'lucide-react'
+import { Trash2, Plus, Clock, Pencil } from 'lucide-react'
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
@@ -54,10 +54,32 @@ export function ClubSchedule() {
 
   // Form state
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [formStartTime, setFormStartTime] = useState('08:00')
   const [formEndTime, setFormEndTime] = useState('14:00')
   const [formDuration, setFormDuration] = useState(90)
   const [submitting, setSubmitting] = useState(false)
+
+  const openCreateForm = () => {
+    setEditingId(null)
+    setFormStartTime('08:00')
+    setFormEndTime('14:00')
+    setFormDuration(90)
+    setShowForm(true)
+  }
+
+  const openEditForm = (band: Band) => {
+    setEditingId(band.id)
+    setFormStartTime(band.startTime)
+    setFormEndTime(band.endTime)
+    setFormDuration(band.slotDuration)
+    setShowForm(true)
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    setEditingId(null)
+  }
 
   const loadBands = useCallback(async () => {
     try {
@@ -75,12 +97,28 @@ export function ClubSchedule() {
   const dayBands = bands.filter((b) => b.dayOfWeek === selectedDay)
   const previewTimes = generateTimes(dayBands)
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta franja?')) return
+  const handleDelete = async (band: Band) => {
     try {
-      await apiFetch(`/api/club/schedule/${id}`, token, { method: 'DELETE' })
-      toast.success('Franja eliminada')
-      loadBands()
+      // Probe: the backend refuses (409) if there are dependent fijas / turnos ocupados
+      const res = await fetch(`/api/club/schedule/${band.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) {
+        toast.success('Franja eliminada')
+        loadBands()
+        return
+      }
+      const body = await res.json().catch(() => ({}))
+      if (res.status === 409 && body.requiresConfirm) {
+        const ok = confirm(`${body.message}\n\n¿Eliminar la franja de todos modos?`)
+        if (!ok) return
+        await apiFetch(`/api/club/schedule/${band.id}?force=true`, token, { method: 'DELETE' })
+        toast.success('Franja eliminada')
+        loadBands()
+        return
+      }
+      throw new Error(body.message || `Error ${res.status}`)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al eliminar')
     }
@@ -90,20 +128,29 @@ export function ClubSchedule() {
     e.preventDefault()
     setSubmitting(true)
     try {
-      await apiFetch('/api/club/schedule', token, {
-        method: 'POST',
-        body: JSON.stringify({
-          dayOfWeek: selectedDay,
-          startTime: formStartTime,
-          endTime: formEndTime,
-          slotDuration: formDuration,
-        }),
-      })
-      toast.success('Franja agregada')
-      setShowForm(false)
+      const payload = {
+        dayOfWeek: selectedDay,
+        startTime: formStartTime,
+        endTime: formEndTime,
+        slotDuration: formDuration,
+      }
+      if (editingId) {
+        await apiFetch(`/api/club/schedule/${editingId}`, token, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        })
+        toast.success('Franja actualizada')
+      } else {
+        await apiFetch('/api/club/schedule', token, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+        toast.success('Franja agregada')
+      }
+      closeForm()
       loadBands()
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al agregar franja')
+      toast.error(err instanceof Error ? err.message : 'Error al guardar la franja')
     } finally {
       setSubmitting(false)
     }
@@ -123,7 +170,7 @@ export function ClubSchedule() {
         {DAY_LABELS.map((label, idx) => (
           <button
             key={idx}
-            onClick={() => { setSelectedDay(idx); setShowForm(false) }}
+            onClick={() => { setSelectedDay(idx); closeForm() }}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors border ${
               selectedDay === idx
                 ? 'bg-primary text-primary-foreground border-primary'
@@ -149,7 +196,7 @@ export function ClubSchedule() {
                 <Button
                   size="sm"
                   className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  onClick={() => setShowForm((v) => !v)}
+                  onClick={() => { if (showForm && !editingId) closeForm(); else openCreateForm() }}
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Agregar franja
@@ -163,6 +210,9 @@ export function ClubSchedule() {
                   onSubmit={handleSubmit}
                   className="border border-border rounded-lg p-4 space-y-3 bg-muted/30"
                 >
+                  <p className="text-sm font-medium text-foreground">
+                    {editingId ? 'Editar franja' : 'Nueva franja'} — {DAY_LABELS[selectedDay]}
+                  </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Inicio</Label>
@@ -211,13 +261,13 @@ export function ClubSchedule() {
                       disabled={submitting}
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
-                      {submitting ? 'Guardando...' : 'Guardar'}
+                      {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar'}
                     </Button>
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      onClick={() => setShowForm(false)}
+                      onClick={closeForm}
                       className="text-muted-foreground"
                     >
                       Cancelar
@@ -251,12 +301,22 @@ export function ClubSchedule() {
                             <td className="py-2.5 text-foreground font-medium">{b.startTime}</td>
                             <td className="py-2.5 text-foreground">{b.endTime}</td>
                             <td className="py-2.5 text-muted-foreground">{b.slotDuration} min</td>
-                            <td className="py-2.5 text-right">
+                            <td className="py-2.5 text-right whitespace-nowrap">
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleDelete(b.id)}
+                                onClick={() => openEditForm(b)}
                                 className="h-7 w-7"
+                                title="Editar franja"
+                              >
+                                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDelete(b)}
+                                className="h-7 w-7"
+                                title="Eliminar franja"
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-destructive" />
                               </Button>
