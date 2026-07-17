@@ -23,30 +23,31 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 
-const NAV_ITEMS: Record<string, { label: string; icon: React.ReactNode; view: ViewName; showBadge?: boolean }[]> = {
+const NAV_ITEMS: Record<string, { label: string; hint: string; icon: React.ReactNode; view: ViewName; showBadge?: boolean }[]> = {
   ADMIN: [
-    { label: 'Inicio', icon: <Home className="w-4 h-4" />, view: 'admin-dashboard' },
-    { label: 'Clubes', icon: <Building2 className="w-4 h-4" />, view: 'admin-clubs' },
+    { label: 'Inicio', hint: 'Resumen general de la plataforma', icon: <Home className="w-4 h-4" />, view: 'admin-dashboard' },
+    { label: 'Clubes', hint: 'Administrá los clubes de la plataforma', icon: <Building2 className="w-4 h-4" />, view: 'admin-clubs' },
   ],
   CLUB: [
-    { label: 'Inicio', icon: <Home className="w-4 h-4" />, view: 'club-dashboard' },
-    { label: 'Canchas', icon: <RectangleHorizontal className="w-4 h-4" />, view: 'club-courts' },
-    { label: 'Torneos', icon: <Trophy className="w-4 h-4" />, view: 'club-tournaments' },
-    { label: 'Jugadores', icon: <Users className="w-4 h-4" />, view: 'club-players' },
-    { label: 'Parejas', icon: <User className="w-4 h-4" />, view: 'club-couples' },
-    { label: 'Partidos', icon: <Calendar className="w-4 h-4" />, view: 'club-matches' },
-    { label: 'Turnos', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
-    { label: 'Reservas fijas', icon: <Repeat className="w-4 h-4" />, view: 'club-recurring' },
-    { label: 'Horario', icon: <Settings className="w-4 h-4" />, view: 'club-schedule' },
-    { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'club-notifications', showBadge: true },
+    { label: 'Inicio', hint: 'Resumen general de tu club', icon: <Home className="w-4 h-4" />, view: 'club-dashboard' },
+    { label: 'Canchas', hint: 'Administrá las canchas de tu club', icon: <RectangleHorizontal className="w-4 h-4" />, view: 'club-courts' },
+    { label: 'Torneos', hint: 'Creá y gestioná los torneos', icon: <Trophy className="w-4 h-4" />, view: 'club-tournaments' },
+    { label: 'Jugadores', hint: 'Jugadores vinculados a tu club', icon: <Users className="w-4 h-4" />, view: 'club-players' },
+    { label: 'Parejas', hint: 'Armá las parejas de cada torneo', icon: <User className="w-4 h-4" />, view: 'club-couples' },
+    { label: 'Partidos', hint: 'Los cruces de cada torneo', icon: <Calendar className="w-4 h-4" />, view: 'club-matches' },
+    { label: 'Turnos', hint: 'Habilitá y gestioná los turnos por día y cancha', icon: <Clock className="w-4 h-4" />, view: 'club-slots' },
+    { label: 'Reservas fijas', hint: 'Turnos que se reservan todas las semanas', icon: <Repeat className="w-4 h-4" />, view: 'club-recurring' },
+    { label: 'Horario', hint: 'Definí las franjas horarias de atención', icon: <Settings className="w-4 h-4" />, view: 'club-schedule' },
+    { label: 'Notificaciones', hint: 'Avisos y novedades de tu club', icon: <Bell className="w-4 h-4" />, view: 'club-notifications', showBadge: true },
   ],
   PLAYER: [
-    { label: 'Mis Clubes', icon: <Building2 className="w-4 h-4" />, view: 'player-memberships' },
-    { label: 'Mis Torneos', icon: <Trophy className="w-4 h-4" />, view: 'player-tournaments' },
-    { label: 'Mis Partidos', icon: <Calendar className="w-4 h-4" />, view: 'player-matches' },
-    { label: 'Reservar Turno', icon: <CalendarPlus className="w-4 h-4" />, view: 'player-bookings' },
-    { label: 'Notificaciones', icon: <Bell className="w-4 h-4" />, view: 'player-notifications', showBadge: true },
+    { label: 'Mis Clubes', hint: 'Clubes en los que participás o tenés solicitudes', icon: <Building2 className="w-4 h-4" />, view: 'player-memberships' },
+    { label: 'Mis Torneos', hint: 'Torneos en los que estás inscripto', icon: <Trophy className="w-4 h-4" />, view: 'player-tournaments' },
+    { label: 'Mis Partidos', hint: 'Elegí horarios y coordiná tus partidos', icon: <Calendar className="w-4 h-4" />, view: 'player-matches' },
+    { label: 'Reservar Turno', hint: 'Reservá un turno suelto en un club', icon: <CalendarPlus className="w-4 h-4" />, view: 'player-bookings' },
+    { label: 'Notificaciones', hint: 'Tus avisos y confirmaciones', icon: <Bell className="w-4 h-4" />, view: 'player-notifications', showBadge: true },
   ],
 }
 
@@ -141,23 +142,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const roleLabel = user.role === 'ADMIN' ? 'Administrador' : user.role === 'CLUB' ? 'Club' : 'Jugador'
 
   const renderNavItem = (item: typeof items[0], onClick?: () => void) => (
-    <button
-      key={item.view}
-      onClick={onClick || (() => setView(item.view))}
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${
-        currentView === item.view
-          ? 'bg-primary/10 text-primary font-medium'
-          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-      }`}
-    >
-      {item.icon}
-      <span className="flex-1 text-left">{item.label}</span>
-      {item.showBadge && unreadCount > 0 && (
-        <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 font-medium">
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
-      )}
-    </button>
+    <Tooltip key={item.view} delayDuration={300}>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onClick || (() => setView(item.view))}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full ${
+            currentView === item.view
+              ? 'bg-primary/10 text-primary font-medium'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          }`}
+        >
+          {item.icon}
+          <span className="flex-1 text-left">{item.label}</span>
+          {item.showBadge && unreadCount > 0 && (
+            <span className="ml-auto bg-primary text-primary-foreground text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1.5 font-medium">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{item.hint}</TooltipContent>
+    </Tooltip>
   )
 
   return (
