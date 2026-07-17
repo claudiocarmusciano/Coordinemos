@@ -31,6 +31,7 @@ import {
   XCircle,
   CalendarDays,
   Repeat,
+  Pencil,
 } from 'lucide-react'
 
 import { Label } from '@/components/ui/label'
@@ -1187,6 +1188,7 @@ export function ClubRecurringBookings() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   // form state
   const [courtId, setCourtId] = useState('')
@@ -1198,6 +1200,27 @@ export function ClubRecurringBookings() {
   const [playerId, setPlayerId] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+
+  const resetForm = () => {
+    setEditingId(null)
+    setCourtId(''); setDayOfWeek('1'); setTimeKey(''); setManualStart(''); setManualEnd('')
+    setBeneficiaryType('player'); setPlayerId(''); setCustomerName(''); setCustomerPhone('')
+  }
+
+  const openCreate = () => { resetForm(); setDialogOpen(true) }
+
+  const openEdit = (r: any) => {
+    setEditingId(r.id)
+    setCourtId(r.courtId)
+    setDayOfWeek(String(r.dayOfWeek))
+    setTimeKey(`${r.startTime}|${r.endTime}`)
+    setManualStart(r.startTime); setManualEnd(r.endTime)
+    setBeneficiaryType(r.player ? 'player' : 'walkin')
+    setPlayerId(r.player?.id ?? '')
+    setCustomerName(r.player ? '' : (r.customerName ?? ''))
+    setCustomerPhone(r.customerPhone ?? '')
+    setDialogOpen(true)
+  }
 
   const loadData = useCallback(async () => {
     try {
@@ -1243,13 +1266,18 @@ export function ClubRecurringBookings() {
       const body: any = { courtId, dayOfWeek: Number(dayOfWeek), startTime, endTime }
       if (beneficiaryType === 'player') body.playerId = playerId
       else { body.customerName = customerName.trim(); body.customerPhone = customerPhone.trim() || undefined }
-      const res = await apiFetch('/api/club/recurring-bookings', token, {
-        method: 'POST', body: JSON.stringify(body),
-      })
+      const res = editingId
+        ? await apiFetch(`/api/club/recurring-bookings/${editingId}`, token, {
+            method: 'PUT', body: JSON.stringify(body),
+          })
+        : await apiFetch('/api/club/recurring-bookings', token, {
+            method: 'POST', body: JSON.stringify(body),
+          })
       const conflicts = res.conflicts?.length || 0
-      toast.success(`Reserva fija creada${conflicts > 0 ? ` (${conflicts} conflicto/s desplazado/s)` : ''}`)
+      const conflictSuffix = conflicts > 0 ? ` (${conflicts} conflicto/s desplazado/s)` : ''
+      toast.success(`${editingId ? 'Reserva fija actualizada' : 'Reserva fija creada'}${conflictSuffix}`)
       setDialogOpen(false)
-      setPlayerId(''); setCustomerName(''); setCustomerPhone(''); setTimeKey('')
+      resetForm()
       loadData()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error')
@@ -1274,15 +1302,15 @@ export function ClubRecurringBookings() {
           <h2 className="text-xl font-semibold text-foreground">Reservas fijas</h2>
           <p className="text-sm text-muted-foreground">Turnos reservados todas las semanas para un jugador</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm() }}>
           <DialogTrigger asChild>
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0">
+            <Button size="sm" onClick={openCreate} className="bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0">
               <Plus className="w-4 h-4 mr-1.5" /> Nueva reserva fija
             </Button>
           </DialogTrigger>
           <DialogContent className="bg-card border-border max-h-[85vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle className="text-foreground">Nueva reserva fija</DialogTitle>
+              <DialogTitle className="text-foreground">{editingId ? 'Editar reserva fija' : 'Nueva reserva fija'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-1">
               <div className="space-y-2">
@@ -1361,7 +1389,7 @@ export function ClubRecurringBookings() {
               </div>
 
               <Button onClick={handleCreate} disabled={saving} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
-                {saving ? 'Creando...' : 'Crear reserva fija'}
+                {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear reserva fija'}
               </Button>
             </div>
           </DialogContent>
@@ -1390,9 +1418,14 @@ export function ClubRecurringBookings() {
                     {r.court?.name} · {r.player ? `${r.player.firstName} ${r.player.lastName}` : r.customerName}
                   </p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => handleCancel(r.id)} title="Cancelar reserva fija">
-                  <Trash2 className="w-4 h-4 text-destructive" />
-                </Button>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(r)} title="Editar reserva fija">
+                    <Pencil className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleCancel(r.id)} title="Cancelar reserva fija">
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
