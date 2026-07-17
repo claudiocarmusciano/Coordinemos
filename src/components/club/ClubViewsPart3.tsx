@@ -716,7 +716,7 @@ export function ClubSlots() {
           <h2 className="text-xl font-semibold text-foreground">Turnos</h2>
           <p className="text-sm text-muted-foreground">Tocá un horario para habilitarlo o quitarlo</p>
         </div>
-        <Dialog open={generateOpen} onOpenChange={(open) => { setGenerateOpen(open); if (!open) setPreview(null) }}>
+        <Dialog open={generateOpen} onOpenChange={(open) => { setGenerateOpen(open); if (open) setGenerateDate(selectedDay); else setPreview(null) }}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground flex-shrink-0">
               <CalendarDays className="w-4 h-4 mr-1.5" />
