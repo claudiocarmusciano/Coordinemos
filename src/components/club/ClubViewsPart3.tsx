@@ -1207,7 +1207,13 @@ export function ClubRecurringBookings() {
     setBeneficiaryType('player'); setPlayerId(''); setCustomerName(''); setCustomerPhone('')
   }
 
-  const openCreate = () => { resetForm(); setDialogOpen(true) }
+  const openCreate = () => {
+    resetForm()
+    // Arrancar en el primer día que tenga franja horaria configurada
+    const firstDay = WEEKDAYS.find((w) => bands.some((b) => b.dayOfWeek === w.value))
+    if (firstDay) setDayOfWeek(String(firstDay.value))
+    setDialogOpen(true)
+  }
 
   const openEdit = (r: any) => {
     setEditingId(r.id)
@@ -1244,6 +1250,13 @@ export function ClubRecurringBookings() {
   const dayTimes = generateTimesFromBands(
     bands.filter((b) => b.dayOfWeek === Number(dayOfWeek))
   )
+
+  // Solo se pueden elegir días con al menos una franja horaria configurada.
+  // Al editar, se incluye el día actual de la reserva aunque ya no tenga franja.
+  const weekdayOptions = WEEKDAYS.filter(
+    (w) => bands.some((b) => b.dayOfWeek === w.value) || (editingId != null && Number(dayOfWeek) === w.value)
+  )
+  const noBandDays = weekdayOptions.length === 0
 
   const handleCreate = async () => {
     let startTime = ''
@@ -1325,12 +1338,18 @@ export function ClubRecurringBookings() {
 
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Día de la semana</Label>
-                <Select value={dayOfWeek} onValueChange={(v) => { setDayOfWeek(v); setTimeKey('') }}>
-                  <SelectTrigger className="bg-input border-border text-foreground"><SelectValue /></SelectTrigger>
+                <Select value={dayOfWeek} onValueChange={(v) => { setDayOfWeek(v); setTimeKey('') }} disabled={noBandDays}>
+                  <SelectTrigger className="bg-input border-border text-foreground"><SelectValue placeholder="Elegí un día" /></SelectTrigger>
                   <SelectContent>
-                    {WEEKDAYS.map((w) => <SelectItem key={w.value} value={String(w.value)}>{w.label}</SelectItem>)}
+                    {weekdayOptions.map((w) => <SelectItem key={w.value} value={String(w.value)}>{w.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {noBandDays && (
+                  <p className="text-xs text-amber-400/80">
+                    No tenés franjas horarias configuradas. Cargalas en la sección <span className="font-medium">Horario</span> para poder crear reservas fijas.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">Solo se muestran los días con franja horaria de atención configurada.</p>
               </div>
 
               <div className="space-y-2">
@@ -1388,7 +1407,7 @@ export function ClubRecurringBookings() {
                 )}
               </div>
 
-              <Button onClick={handleCreate} disabled={saving} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Button onClick={handleCreate} disabled={saving || noBandDays} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                 {saving ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Crear reserva fija'}
               </Button>
             </div>
